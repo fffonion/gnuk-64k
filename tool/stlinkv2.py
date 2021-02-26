@@ -133,7 +133,7 @@ class OperationFailure(Exception):
 
 class stlinkv2(object):
     def __init__(self, dev):
-        if dev.idProduct == USB_VENDOR_STLINKV2:
+        if dev.idProduct == USB_PRODUCT_STLINKV2:
             self.__bulkout = 2
         else:
             self.__bulkout = 1
@@ -535,8 +535,8 @@ class stlinkv2(object):
 
 
 USB_VENDOR_ST=0x0483            # 0x0483 SGS Thomson Microelectronics
-USB_VENDOR_STLINKV2=0x3748      # 0x3748 ST-LINK/V2
-USB_VENDOR_STLINKV2_1=0x374b    # 0x374b ST-LINK/V2_1
+USB_PRODUCT_STLINKV2=0x3748     # 0x3748 ST-LINK/V2
+USB_PRODUCT_STLINKV2_1=0x374b   # 0x374b ST-LINK/V2_1
 
 def stlinkv2_devices():
     busses = usb.busses()
@@ -545,7 +545,7 @@ def stlinkv2_devices():
         for dev in devices:
             if dev.idVendor != USB_VENDOR_ST:
                 continue
-            if dev.idProduct != USB_VENDOR_STLINKV2 and dev.idProduct != USB_VENDOR_STLINKV2_1:
+            if dev.idProduct != USB_PRODUCT_STLINKV2 and dev.idProduct != USB_PRODUCT_STLINKV2_1:
                 continue
             yield dev
 
