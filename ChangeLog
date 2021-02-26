@@ -1,5 +1,7 @@
 2021-02-26  NIIBE Yutaka  <gniibe@fsij.org>
 
+	* src/configure (kdf_do_required): Fix typo.
+
 	* chopstx: Update to 2.2.
 
 2021-02-25  NIIBE Yutaka  <gniibe@fsij.org>
