@@ -25,12 +25,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#define N_REDUNDANT_LIMBS 16
 #define N_LIMBS 14
-
-typedef struct p448_t {
-  uint32_t limb[N_REDUNDANT_LIMBS];
-} p448_t;
 
 typedef struct
 {
@@ -39,14 +34,7 @@ typedef struct
 } pt;
 
 
-extern void p448_add (p448_t *x, const p448_t *a, const p448_t *b);
-extern void p448_sub (p448_t *x, const p448_t *a, const p448_t *b);
-extern void p448_mul (p448_t *__restrict__ x, const p448_t *a, const p448_t *b);
-extern void p448_mul_int (p448_t *__restrict__ x, const p448_t *a, int32_t b);
-extern void p448_sqr (p448_t *__restrict__ c, const p448_t *a);
-extern void p448_inv (p448_t *__restrict__ x, const p448_t *a);
-extern void p448_serialize (uint8_t serial[56], const p448_t *x);
-extern int p448_deserialize (p448_t *x, const uint8_t serial[56]);
+#include "p448.h"
 
 /**
  * @brief  Process Montgomery double-and-add
@@ -77,7 +65,7 @@ mont_d_and_a (pt *prd, pt *sum, pt *q0, pt *q1, const p448_t dif_x[1])
   p448_sub (q0->z, q0->x, q0__z);
                                         p448_sqr (sum->x, sum__x);
                                         p448_sqr (sum__z, q1->z);
-  p448_mul_int (prd->z, q0->z, 39081);
+  p448_mul_39081 (prd->z, q0->z);
                                         p448_mul (sum->z, sum__z, dif_x);
   p448_add (prd__z, q0->x, prd->z);
   p448_mul (prd->z, prd__z, q0->z);
