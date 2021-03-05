@@ -25,6 +25,8 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "p448.h"
+
 #define N_LIMBS 14
 
 typedef struct
@@ -33,8 +35,6 @@ typedef struct
   p448_t z[1];
 } pt;
 
-
-#include "p448.h"
 
 /**
  * @brief  Process Montgomery double-and-add
