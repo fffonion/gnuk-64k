@@ -54,33 +54,43 @@ mul64_32x32 (const uint32_t a, const uint32_t b)
  * Compute X = A * B mod p448
  */
 /*
- * It's called "golden-ratio prime".
+ * When we set phi = 2^224, p448 can be expressed as:
  *
- * When we set: phi = 2^224, Karatsuba multiplication goes like:
+ *     p448 = phi^2 - phy - 1
  *
- * (s + t * phi) * (u + v * phi)
- * =  su + (sv + tu)*phy + tv*phi^2
- * == (su + tv) + (sv + tu + tv) * phy (mod p448)
- * = (su + tv) + ((s + t)*(u + v) - su) * phy
+ * Here, using the right hand side and make a fomula
+ *
+ *     phi^2 - phy - 1 = 0
+ *
+ * it is the fomula where it's solution is golden ratio.
+ *
+ * By analogy, so, p448 is called "golden-ratio prime".
+ *
+ * When we set phi = 2^224, Karatsuba multiplication goes like:
+ *
+ * (p + q * phi) * (r + s * phi)
+ * =  pr + (ps + qr)*phy + qs*phi^2
+ * == (pr + qs) + (ps + qr + qs) * phy (mod p448)
+ * = (pr + qs) + ((p + q)*(r + s) - pr) * phy
  *
  * That is, it can be done by three times of 224-bit multiplications
  * (instead of four).
  *
  * Let us see more detail.
  *
- * The formula above is congruent to:
- * == lower224(su + tv) + upper224(su + tv)*phy
- *                      + lower224((s + t)*(u + v) - su)*phy
- *                      + upper224((s + t)*(u + v) - su)*phy^2 (mod p448)
- * == lower224(su + tv)
- *    + upper224((s + t)*(u + v) - su)
- *                      + (upper224(su + tv)
- *                         + lower224((s + t)*(u + v) - su)
- *                         + upper224((s + t)*(u + v) - su))*phy (mod p448)
- * = lower224(su + tv)
- *   + upper224((s + t)*(u + v) - su)
- *                      + (lower224((s + t)*(u + v) - su)
- *                         + upper224((s + t)*(u + v) + tv)) * phy
+ * The formula above is calculated to:
+ * = lower224(pr + qs) + upper224(pr + qs)*phy
+ *                     + lower224((p + q)*(r + s) - pr)*phy
+ *                     + upper224((p + q)*(r + s) - pr)*phy^2 (mod p448)
+ * == lower224(pr + qs)
+ *    + upper224((p + q)*(r + s) - pr)
+ *                      + (upper224(pr + qs)
+ *                         + lower224((p + q)*(r + s) - pr)
+ *                         + upper224((p + q)*(r + s) - pr))*phy (mod p448)
+ * = lower224(pr + qs)
+ *   + upper224((p + q)*(r + s) - pr)
+ *                      + (lower224((p + q)*(r + s) - pr)
+ *                         + upper224((p + q)*(r + s) + qs)) * phy
  *
  */
 /*
@@ -99,7 +109,7 @@ Here is a figure of: multiplication by 8-limb * 8-limb
    aj bj cj dj ej fj gj hj
 ai bi ci di ei fi gi hi
 
-lower224
+Considering lower224, it's:
                      ap bp cp dp ep fp gp hp
                      bo co do eo fo go ho
                      cn dn en fn gn hn
@@ -109,7 +119,7 @@ lower224
                      gj hj
                      hi
 
-upper224
+Considering upper224, it's:
                                           ao
                                        an bn
                                     am bm cm
@@ -122,8 +132,8 @@ void
 p448_mul (p448_t *__restrict__ x, const p448_t *a, const p448_t *b)
 {
   int i, j;
-  uint64_t var64_0, var64_1, var64_2;
-  uint32_t s_t[8], u_v[8];
+  uint64_t var64_0, v64_1, v64_2;
+  uint32_t p_q[8], r_s[8];
   uint32_t *px;
   const uint32_t *pa, *pb;
 
@@ -134,15 +144,15 @@ p448_mul (p448_t *__restrict__ x, const p448_t *a, const p448_t *b)
   /* Firstly, we do Karatsuba preparation.  */
   for (i = 0; i < 8; i++)
     {
-      s_t[i] = pa[i] + pa[i+8];
-      u_v[i] = pb[i] + pb[i+8];
+      p_q[i] = pa[i] + pa[i+8];
+      r_s[i] = pb[i] + pb[i+8];
     }
 
-  var64_0 = var64_1 = 0;
+  v64_0 = v64_1 = 0;
 
   for (j = 0; j < 8; j++)
     {
-      var64_2 = 0;
+      v64_2 = 0;
 
       /* Compute lower half of limbs (lower224) */
       /*  __  <-- j
@@ -152,15 +162,15 @@ p448_mul (p448_t *__restrict__ x, const p448_t *a, const p448_t *b)
        */
       for (i = 0; i <= j; i++)
 	{
-	  var64_0 += mul64_32x32 (pa[8+j-i], pb[8+i]);/* accumulating t*v */
-	  var64_1 += mul64_32x32 (s_t[j-i], u_v[i]);  /* accumulating s_t*u_v */
-	  var64_2 += mul64_32x32 (pa[j-i], pb[i]);    /* accumulating s*u */
+	  v64_0 += mul64_32x32 (pa[8+j-i], pb[8+i]);/* accumulating q*s     */
+	  v64_1 += mul64_32x32 (p_q[j-i], r_s[i]);  /* accumulating p_q*r_s */
+	  v64_2 += mul64_32x32 (pa[j-i], pb[i]);    /* accumulating p*r     */
 	}
 
-      var64_0 += var64_2; /* Compute su+tv.         */
-      var64_1 -= var64_2; /* Compute s_t*u_v - su.  */
+      v64_0 += v64_2; /* Compute pr+qs.         */
+      v64_1 -= v64_2; /* Compute p_q*r_s - pr.  */
 
-      var64_2 = 0;
+      v64_2 = 0;
 
       /* Compute upper half of limbs (upper224) */
       /*     <-- j
@@ -170,38 +180,38 @@ p448_mul (p448_t *__restrict__ x, const p448_t *a, const p448_t *b)
        */
       for (; i < 8; i++)
 	{
-	  var64_0 -= mul64_32x32 (pa[8+j-i], pb[i]);   /* accumulating -s*u */
-	  var64_1 += mul64_32x32 (pa[16+j-i], pb[8+i]);/* accumulating t*v */
-	  var64_2 += mul64_32x32 (s_t[8+j-i], u_v[i]);/* accumulating s_t*u_v */
+	  v64_0 -= mul64_32x32 (pa[8+j-i], pb[i]);   /* accumulating -p*r    */
+	  v64_1 += mul64_32x32 (pa[16+j-i], pb[8+i]);/* accumulating q*s     */
+	  v64_2 += mul64_32x32 (p_q[8+j-i], r_s[i]); /* accumulating p_q*r_s */
 	}
 
-      var64_0 += var64_2; /* Compute s_t*u_v - su.  */
-      var64_1 += var64_2; /* Compute s_t*u_v + tv.  */
+      v64_0 += v64_2; /* Compute p_q*r_s - pr.  */
+      v64_1 += v64_2; /* Compute p_q*r_s + qs.  */
 
-      px[j] = var64_0 & MASK_28BITS;
-      px[j+8] = var64_1 & MASK_28BITS;
+      px[j] = v64_0 & MASK_28BITS;
+      px[j+8] = v64_1 & MASK_28BITS;
 
-      var64_0 >>= 28;
-      var64_1 >>= 28;
+      v64_0 >>= 28;
+      v64_1 >>= 28;
     }
 
-  /* "Carry" remains as: 2^448 * var64_1 + 2^224 * var64_0 */
+  /* "Carry" remains as: 2^448 * v64_1 + 2^224 * v64_0 */
   /*
-   * Subtract p448 times var64_1 to clear msbs, meaning, clear those
-   * bits and adding var64_1 to px[0] and px[8] (in mod p448
+   * Subtract p448 times v64_1 to clear msbs, meaning, clear those
+   * bits and adding v64_1 to px[0] and px[8] (in mod p448
    * calculation).
    */
-  var64_0 += var64_1;
-  var64_0 += px[8];
-  var64_1 += px[0];
-  px[8] = var64_0 & MASK_28BITS;
-  px[0] = var64_1 & MASK_28BITS;
+  v64_0 += v64_1;
+  v64_0 += px[8];
+  v64_1 += px[0];
+  px[8] = v64_0 & MASK_28BITS;
+  px[0] = v64_1 & MASK_28BITS;
 
   /* Still, it carries to... */
-  var64_0 >>= 28;
-  var64_1 >>= 28;
-  px[9] += var64_0;
-  px[1] += var64_1;
+  v64_0 >>= 28;
+  v64_1 >>= 28;
+  px[9] += v64_0;
+  px[1] += v64_1;
   /* DONE.  */
 }
 
