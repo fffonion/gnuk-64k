@@ -366,47 +366,10 @@ p448_strong_reduce (p448_t *a)
   a->limb[15] &= MASK_28BITS;
 
   /*
-   * p448 can be represented in redundant representation:
-   *  0{4}1{28}  0{4}1{28} 0{4}1{28} 0{4}1{28}
-   *  0{4}1{28}  0{4}1{28} 0{4}1{28} 0{4}1{28}
-   *  0{4}1{27}0 0{4}1{28} 0{4}1{28} 0{4}1{28}
-   *  0{4}1{28}  0{4}1{28} 0{4}1{28} 0{4}1{28}
-   *
-   * So, 2*p448 can be represented:
-   *  0{4}1{27}0  0{4}1{28} 0{4}1{28} 0{4}1{28}
-   *  0{4}1{28}   0{4}1{28} 0{4}1{28} 0{4}1{28}
-   *  0{4}1{26}01 0{4}1{28} 0{4}1{28} 0{4}1{28}
-   *  0{4}1{28}   0{4}1{28} 0{4}1{28} 0{3}1{29}
-   *
-   * Suppose that each limb has 31 of 1s in A (maximum), when called.
-   *
-   *  01{31}    01{31} 01{31} 01{31} 01{31} 01{31} 01{31} 01{31}
-   *  01{31}    01{31} 01{31} 01{31} 01{31} 01{31} 01{31} 01{31}
-   *
-   * Here, cleared the 4-bit of the last limb above, it becomes:
-   *  10{28}110 01{31} 01{31} 01{31} 01{31} 01{31} 01{31} 01{31}
-   *  10{28}110 01{31} 01{31} 01{31} 01{31} 01{31} 01{31} 0{4}1{28}
-   *
-   * When trying to clear 4-bit of all limbs of these, it can be reduced as:
-   *  0{3}10{25}110 0{3}10{25}110 0{3}10{25}110 0{3}10{25}110
-   *  0{3}10{25}110 0{3}10{25}110 0{3}10{25}110 0{3}10{25}110
-   *  0{28}1101 0{3}10{25}111 0{3}10{25}110 0{3}10{25}110
-   *  0{3}10{25}110 0{3}10{25}110 0{3}10{25}110 0{3}10{25}110
-   * then, clear 4-bit of all limbs (other than the last one),
-   * it can be reduced as:
-   *  0{29}110  0{29}111 0{29}111 0{29}111
-   *  0{29}111  0{29}111 0{29}111 0{29}111
-   *  0{28}1110 0{29}111 0{29}111 0{29}111
-   *  0{29}111  0{29}111 0{29}111 0{3}10{25}111
-   *
-   * Comparing this to the representation of 2*p448, it is guaranteed that
-   * the value represented here must be less than 2*p448.
-   *
-   * So, it's: 0 < v < 2*p448
+   * Here, it's: 0 <= v < 2*p448
    *
    * When v > p448, subtract p448 from v, then it becomes strongly reduced.
    * Otherwise, it's already strongly reduced.
-   *
    */
 
   /* Subtract p448 */
