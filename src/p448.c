@@ -441,9 +441,9 @@ p448_deserialize (p448_t *x, const uint8_t serial[56])
       v <<= 8;
       v |= *--p;
 
-      x->limb[N_REDUNDANT_LIMBS-2*i-1] = v & MASK_28BITS;
+      x->limb[N_REDUNDANT_LIMBS-2*i-1] = (v >> 4);
 
-      v >>= 28;
+      v = (v & 0x0f);
       v <<= 8;
       v |= *--p;
       v <<= 8;
