@@ -116,7 +116,7 @@ const uint8_t *gpg_get_firmware_update_key (uint8_t keyno);
 
 /* Constants: algo+size */
 #define ALGO_RSA4K      0
-#define ALGO_NISTP256R1 1
+/* #define ALGO_NISTP256R1 1 */
 #define ALGO_SECP256K1  2
 #define ALGO_ED25519    3
 #define ALGO_CURVE25519 4
@@ -268,13 +268,6 @@ int rsa_decrypt (const uint8_t *, uint8_t *, int, struct key_data *,
 		 unsigned int *);
 int rsa_verify (const uint8_t *, int, const uint8_t *, const uint8_t *);
 int rsa_genkey (int, uint8_t *, uint8_t *);
-
-int ecdsa_sign_p256r1 (const uint8_t *hash, uint8_t *output,
-		       const uint8_t *key_data);
-int ecc_compute_public_p256r1 (const uint8_t *key_data, uint8_t *);
-int ecc_check_secret_p256r1 (const uint8_t *d0, uint8_t *d1);
-int ecdh_decrypt_p256r1 (const uint8_t *input, uint8_t *output,
-			 const uint8_t *key_data);
 
 int ecdsa_sign_p256k1 (const uint8_t *hash, uint8_t *output,
 		       const uint8_t *key_data);

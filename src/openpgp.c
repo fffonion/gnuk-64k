@@ -987,7 +987,7 @@ cmd_pso (struct eventflag *ccid_comm)
 	  r = rsa_sign (apdu.cmd_apdu_data, res_APDU, len,
 			&kd[GPG_KEY_FOR_SIGNING], pubkey_len);
 	}
-      else if (attr == ALGO_NISTP256R1 || attr == ALGO_SECP256K1)
+      else if (attr == ALGO_SECP256K1)
 	{
 	  /* ECDSA with p256r1/p256k1 for signature */
 	  if (len != ECDSA_HASH_LEN)
@@ -999,12 +999,8 @@ cmd_pso (struct eventflag *ccid_comm)
 
 	  cs = chopstx_setcancelstate (0);
 	  result_len = ECDSA_SIGNATURE_LENGTH;
-	  if (attr == ALGO_NISTP256R1)
-	    r = ecdsa_sign_p256r1 (apdu.cmd_apdu_data, res_APDU,
-				   kd[GPG_KEY_FOR_SIGNING].data);
-	  else			/* ALGO_SECP256K1 */
-	    r = ecdsa_sign_p256k1 (apdu.cmd_apdu_data, res_APDU,
-				   kd[GPG_KEY_FOR_SIGNING].data);
+	  r = ecdsa_sign_p256k1 (apdu.cmd_apdu_data, res_APDU,
+				 kd[GPG_KEY_FOR_SIGNING].data);
 	  chopstx_setcancelstate (cs);
 	}
       else if (attr == ALGO_ED25519)
@@ -1069,7 +1065,7 @@ cmd_pso (struct eventflag *ccid_comm)
 	  r = rsa_decrypt (apdu.cmd_apdu_data+1, res_APDU, len,
 			   &kd[GPG_KEY_FOR_DECRYPTION], &result_len);
 	}
-      else if (attr == ALGO_NISTP256R1 || attr == ALGO_SECP256K1)
+      else if (attr == ALGO_SECP256K1)
 	{
 	  int header = ECC_CIPHER_DO_HEADER_SIZE;
 
@@ -1083,12 +1079,8 @@ cmd_pso (struct eventflag *ccid_comm)
 
 	  cs = chopstx_setcancelstate (0);
 	  result_len = 65;
-	  if (attr == ALGO_NISTP256R1)
-	    r = ecdh_decrypt_p256r1 (apdu.cmd_apdu_data + header, res_APDU,
-				     kd[GPG_KEY_FOR_DECRYPTION].data);
-	  else
-	    r = ecdh_decrypt_p256k1 (apdu.cmd_apdu_data + header, res_APDU,
-				     kd[GPG_KEY_FOR_DECRYPTION].data);
+	  r = ecdh_decrypt_p256k1 (apdu.cmd_apdu_data + header, res_APDU,
+				   kd[GPG_KEY_FOR_DECRYPTION].data);
 	  chopstx_setcancelstate (cs);
 	}
       else if (attr == ALGO_CURVE25519)
@@ -1182,21 +1174,6 @@ cmd_internal_authenticate (struct eventflag *ccid_comm)
       result_len = pubkey_len;
       r = rsa_sign (apdu.cmd_apdu_data, res_APDU, len,
 		    &kd[GPG_KEY_FOR_AUTHENTICATION], pubkey_len);
-    }
-  else if (attr == ALGO_NISTP256R1)
-    {
-      if (len != ECDSA_HASH_LEN)
-	{
-	  DEBUG_INFO ("wrong hash length.");
-	  GPG_CONDITION_NOT_SATISFIED ();
-	  return;
-	}
-
-      cs = chopstx_setcancelstate (0);
-      result_len = ECDSA_SIGNATURE_LENGTH;
-      r = ecdsa_sign_p256r1 (apdu.cmd_apdu_data, res_APDU,
-			     kd[GPG_KEY_FOR_AUTHENTICATION].data);
-      chopstx_setcancelstate (cs);
     }
   else if (attr == ALGO_SECP256K1)
     {

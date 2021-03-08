@@ -166,12 +166,6 @@ static const uint8_t algorithm_attr_rsa4k[] __attribute__ ((aligned (1))) = {
   0x00		      /* 0: Acceptable format is: P and Q */
 };
 
-static const uint8_t algorithm_attr_p256r1[] __attribute__ ((aligned (1))) = {
-  9,
-  OPENPGP_ALGO_ECDSA,
-  0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07 /* OID of NIST curve P-256 */
-};
-
 static const uint8_t algorithm_attr_p256k1[] __attribute__ ((aligned (1))) = {
   6,
   OPENPGP_ALGO_ECDSA,
@@ -294,8 +288,6 @@ get_algo_attr_data_object (enum kind_of_key kk)
     {
     case ALGO_RSA4K:
       return algorithm_attr_rsa4k;
-    case ALGO_NISTP256R1:
-      return algorithm_attr_p256r1;
     case ALGO_SECP256K1:
       return algorithm_attr_p256k1;
     case ALGO_ED25519:
@@ -322,7 +314,6 @@ gpg_get_algo_attr_key_size (enum kind_of_key kk, enum size_of_key s)
 	return 1024;
       else
 	return 512;
-    case ALGO_NISTP256R1:
     case ALGO_SECP256K1:
       if (s == GPG_KEY_STORAGE)
 	return 128;
@@ -713,7 +704,6 @@ do_alg_info (uint16_t tag, int with_tag)
 
       copy_do_1 (tag_algo, algorithm_attr_rsa2k, 1);
       copy_do_1 (tag_algo, algorithm_attr_rsa4k, 1);
-      copy_do_1 (tag_algo, algorithm_attr_p256r1, 1);
       copy_do_1 (tag_algo, algorithm_attr_p256k1, 1);
       if (i == 0 || i == 2)
 	copy_do_1 (tag_algo, algorithm_attr_ed25519, 1);
@@ -799,12 +789,6 @@ rw_algorithm_attr (uint16_t tag, int with_tag,
 		       && memcmp (data+1, algorithm_attr_p256k1+2, 5) == 0))
 	    algo = ALGO_SECP256K1;
 	}
-      else if (len == 9
-	       && ((tag != GPG_DO_ALG_DEC
-		    && memcmp (data, algorithm_attr_p256r1+1, 9) == 0)
-		   || (tag == GPG_DO_ALG_DEC && data[0]==OPENPGP_ALGO_ECDH
-		       && memcmp (data+1, algorithm_attr_p256r1+2, 8) == 0)))
-	algo = ALGO_NISTP256R1;
       else if (len == 10 && memcmp (data, algorithm_attr_ed25519+1, 10) == 0)
 	algo = ALGO_ED25519;
       else if (len == 11 && memcmp (data, algorithm_attr_cv25519+1, 11) == 0)
@@ -1380,7 +1364,7 @@ gpg_do_write_prvkey (enum kind_of_key kk, const uint8_t *key_data,
   /* Delete it first, if any.  */
   gpg_do_delete_prvkey (kk, CLEAN_SINGLE);
 
-  if (attr == ALGO_NISTP256R1 || attr == ALGO_SECP256K1)
+  if (attr == ALGO_SECP256K1)
     {
       pubkey_len = prvkey_len * 2;
       if (prvkey_len != 32)
@@ -1648,7 +1632,7 @@ proc_key_import (const uint8_t *data, int len)
 
   attr = gpg_get_algo_attr (kk);
 
-  if ((len <= 12 && (attr == ALGO_NISTP256R1 || attr == ALGO_SECP256K1
+  if ((len <= 12 && (attr == ALGO_SECP256K1
 		     || attr == ALGO_ED25519 || attr == ALGO_CURVE25519))
       || (len <= 22 && attr == ALGO_RSA2K) || (len <= 24 && attr == ALGO_RSA4K))
     {					    /* Deletion of the key */
@@ -1670,13 +1654,6 @@ proc_key_import (const uint8_t *data, int len)
       r = modulus_calc (&data[28], len - 28, pubkey);
       if (r >= 0)
 	r = gpg_do_write_prvkey (kk, &data[28], len - 28, keystring_admin,
-				 pubkey);
-    }
-  else if (attr == ALGO_NISTP256R1)
-    {
-      r = ecc_compute_public_p256r1 (&data[12], pubkey);
-      if (r >= 0)
-	r = gpg_do_write_prvkey (kk, &data[12], len - 12, keystring_admin,
 				 pubkey);
     }
   else if (attr == ALGO_SECP256K1)
@@ -2306,7 +2283,7 @@ gpg_do_public_key (uint8_t kk_byte)
   /* TAG */
   *res_p++ = 0x7f; *res_p++ = 0x49;
 
-  if (attr == ALGO_NISTP256R1 || attr == ALGO_SECP256K1)
+  if (attr == ALGO_SECP256K1)
     {				/* ECDSA or ECDH */
       /* LEN */
       *res_p++ = 2 + 1 + 64;
@@ -2420,7 +2397,7 @@ gpg_do_keygen (uint8_t *buf)
 
       prv = p_q;
     }
-  else if (attr == ALGO_NISTP256R1 || attr == ALGO_SECP256K1)
+  else if (attr == ALGO_SECP256K1)
     {
       const uint8_t *p;
       int i;
@@ -2431,10 +2408,7 @@ gpg_do_keygen (uint8_t *buf)
 	  if (rnd)
 	    random_bytes_free (rnd);
 	  rnd = random_bytes_get ();
-	  if (attr == ALGO_NISTP256R1)
-	    r = ecc_check_secret_p256r1 (rnd, d1);
-	  else
-	    r = ecc_check_secret_p256k1 (rnd, d1);
+	  r = ecc_check_secret_p256k1 (rnd, d1);
 	}
       while (r == 0);
 
@@ -2450,10 +2424,7 @@ gpg_do_keygen (uint8_t *buf)
       random_bytes_free (rnd);
 
       prv = d;
-      if (attr == ALGO_SECP256K1)
-	r = ecc_compute_public_p256k1 (prv, pubkey);
-      else if (attr == ALGO_NISTP256R1)
-	r = ecc_compute_public_p256r1 (prv, pubkey);
+      r = ecc_compute_public_p256k1 (prv, pubkey);
     }
   else if (attr == ALGO_ED25519)
     {
