@@ -285,11 +285,15 @@ p448_weak_reduce (p448_t *a)
   a->limb[0] = (a->limb[0] & MASK_28BITS) + tmp;
 }
 
-static p448_t p448[1] = {
-  0x0fffffff, 0x0fffffff, 0x0fffffff, 0x0fffffff,
-  0x0fffffff, 0x0fffffff, 0x0fffffff, 0x0fffffff,
-  0x0ffffffe, 0x0fffffff, 0x0fffffff, 0x0fffffff,
-  0x0fffffff, 0x0fffffff, 0x0fffffff, 0x0fffffff,
+static const p448_t p448[1] = {
+ {
+   {
+    0x0fffffff, 0x0fffffff, 0x0fffffff, 0x0fffffff,
+    0x0fffffff, 0x0fffffff, 0x0fffffff, 0x0fffffff,
+    0x0ffffffe, 0x0fffffff, 0x0fffffff, 0x0fffffff,
+    0x0fffffff, 0x0fffffff, 0x0fffffff, 0x0fffffff
+   }
+ }
 };
 
 
@@ -361,7 +365,6 @@ p448_sub_borrow (p448_t *x, const p448_t *a, const p448_t *b)
 void
 p448_strong_reduce (p448_t *a)
 {
-  int i;
   uint32_t tmp;
   uint32_t is_negative;
 
@@ -524,11 +527,15 @@ p448_inv (p448_t *__restrict__ x, const p448_t *a)
   p448_mul  ( x, a,  t  );  /* 1{223} 0 1{222}01 */
 }
 
-static p448_t p448_times_2[1] = {
-  0x1ffffffe, 0x1ffffffe, 0x1ffffffe, 0x1ffffffe,
-  0x1ffffffe, 0x1ffffffe, 0x1ffffffe, 0x1ffffffe,
-  0x1ffffffc, 0x1ffffffe, 0x1ffffffe, 0x1ffffffe,
-  0x1ffffffe, 0x1ffffffe, 0x1ffffffe, 0x1ffffffe,
+static const p448_t p448_times_2[1] = {
+  {
+    {
+      0x1ffffffe, 0x1ffffffe, 0x1ffffffe, 0x1ffffffe,
+      0x1ffffffe, 0x1ffffffe, 0x1ffffffe, 0x1ffffffe,
+      0x1ffffffc, 0x1ffffffe, 0x1ffffffe, 0x1ffffffe,
+      0x1ffffffe, 0x1ffffffe, 0x1ffffffe, 0x1ffffffe
+    }
+  }
 };
 
 /**
