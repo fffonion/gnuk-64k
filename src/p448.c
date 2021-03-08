@@ -132,7 +132,7 @@ void
 p448_mul (p448_t *__restrict__ x, const p448_t *a, const p448_t *b)
 {
   int i, j;
-  uint64_t var64_0, v64_1, v64_2;
+  uint64_t v64_0, v64_1, v64_2;
   uint32_t p_q[8], r_s[8];
   uint32_t *px;
   const uint32_t *pa, *pb;
