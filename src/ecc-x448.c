@@ -135,9 +135,9 @@ compute_nQ (uint8_t *res, const uint32_t n[N_LIMBS], const p448_t q_x[1])
 
 
 void
-ecdh_compute_public_448 (const uint8_t *key_data, uint8_t *pubkey)
+ecdh_compute_public_x448 (uint8_t *pubkey, const uint8_t *key_data)
 {
-  p448_t gx[1] = { 5, };
+  const p448_t gx[1] = { { { 5, 0, }, } };
   uint32_t k[N_LIMBS];
 
   memcpy (k, key_data, N_LIMBS*4);
@@ -147,8 +147,8 @@ ecdh_compute_public_448 (const uint8_t *key_data, uint8_t *pubkey)
 }
 
 int
-ecdh_decrypt_curve448 (const uint8_t *input, uint8_t *output,
-		       const uint8_t *key_data)
+ecdh_decrypt_x448 (uint8_t *output, const uint8_t *input,
+		   const uint8_t *key_data)
 {
   p448_t q_x[1];
   uint32_t k[N_LIMBS];

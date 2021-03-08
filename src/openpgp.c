@@ -2,7 +2,7 @@
  * openpgp.c -- OpenPGP card protocol support
  *
  * Copyright (C) 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018
- *               2019
+ *               2019, 2021
  *               Free Software Initiative of Japan
  * Author: NIIBE Yutaka <gniibe@fsij.org>
  *
@@ -1097,6 +1097,22 @@ cmd_pso (struct eventflag *ccid_comm)
 	  result_len = 32;
 	  r = ecdh_decrypt_curve25519 (apdu.cmd_apdu_data + header, res_APDU,
 				       kd[GPG_KEY_FOR_DECRYPTION].data);
+	  chopstx_setcancelstate (cs);
+	}
+      else if (attr == ALGO_X448)
+	{
+	  int header = ECC_CIPHER_DO_HEADER_SIZE;
+
+	  if (len != 56 + ECC_CIPHER_DO_HEADER_SIZE)
+	    {
+	      GPG_CONDITION_NOT_SATISFIED ();
+	      return;
+	    }
+
+	  cs = chopstx_setcancelstate (0);
+	  result_len = 56;
+	  r = ecdh_decrypt_x448 (res_APDU, apdu.cmd_apdu_data + header,
+				 kd[GPG_KEY_FOR_DECRYPTION].data);
 	  chopstx_setcancelstate (cs);
 	}
       else

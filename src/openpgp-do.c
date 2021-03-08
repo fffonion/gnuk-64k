@@ -2,7 +2,7 @@
  * openpgp-do.c -- OpenPGP card Data Objects (DO) handling
  *
  * Copyright (C) 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
- *               2020
+ *               2020, 2021
  *               Free Software Initiative of Japan
  * Author: NIIBE Yutaka <gniibe@fsij.org>
  *
@@ -150,6 +150,13 @@ static const uint8_t feature_mngmnt[] __attribute__ ((aligned (1))) = {
 #define OPENPGP_ALGO_ECDSA 0x13
 #define OPENPGP_ALGO_EDDSA 0x16 /* It catches 22, finally.  */
 
+static const uint8_t algorithm_attr_x448[] __attribute__ ((aligned (1))) = {
+  4,
+  OPENPGP_ALGO_ECDH,
+  /* OID of X448 */
+  0x2b, 0x65, 0x6f
+};
+
 static const uint8_t algorithm_attr_rsa2k[] __attribute__ ((aligned (1))) = {
   6,
   OPENPGP_ALGO_RSA,
@@ -294,6 +301,8 @@ get_algo_attr_data_object (enum kind_of_key kk)
       return algorithm_attr_ed25519;
     case ALGO_CURVE25519:
       return algorithm_attr_cv25519;
+    case ALGO_X448:
+      return algorithm_attr_x448;
     default:
       return algorithm_attr_rsa2k;
     }
@@ -333,6 +342,11 @@ gpg_get_algo_attr_key_size (enum kind_of_key kk, enum size_of_key s)
 	return 64;
       else
 	return 32;
+    case ALGO_X448:
+      if (s == GPG_KEY_STORAGE)
+	return 112;
+      else
+	return 56;
     default:
     rsa2k:
       if (s == GPG_KEY_STORAGE)
@@ -708,7 +722,10 @@ do_alg_info (uint16_t tag, int with_tag)
       if (i == 0 || i == 2)
 	copy_do_1 (tag_algo, algorithm_attr_ed25519, 1);
       if (i == 1)
-	copy_do_1 (tag_algo, algorithm_attr_cv25519, 1);
+	{
+	  copy_do_1 (tag_algo, algorithm_attr_cv25519, 1);
+	  copy_do_1 (tag_algo, algorithm_attr_x448, 1);
+	}
     };
 
   if (len_p)
@@ -777,6 +794,11 @@ rw_algorithm_attr (uint16_t tag, int with_tag,
       int algo = -1;
       const uint8_t **algo_attr_pp = get_algo_attr_pointer (kk);
 
+      if (len == 4)
+	{
+	  if (memcmp (data, algorithm_attr_x448+1, 4) == 0)
+	    algo = ALGO_X448;
+	}
       if (len == 6)
 	{
 	  if (memcmp (data, algorithm_attr_rsa2k+1, 6) == 0)
@@ -804,7 +826,7 @@ rw_algorithm_attr (uint16_t tag, int with_tag,
 	    return 0;
 	}
       else if ((algo != ALGO_RSA2K && *algo_attr_pp == NULL) ||
-               (*algo_attr_pp != NULL && (*algo_attr_pp)[1] != algo))
+	       (*algo_attr_pp != NULL && (*algo_attr_pp)[1] != algo))
 	{
 	  gpg_reset_algo_attr (kk);
 	  *algo_attr_pp = flash_enum_write (kk_to_nr (kk), algo);
@@ -906,7 +928,7 @@ rw_kdf (uint16_t tag, int with_tag, const uint8_t *data, int len, int is_write)
 
       /* The valid data format is:
 	 Deleting:
-           nothing
+	   nothing
 	 Minimum (for admin-less):
 	   81 01 03 = KDF_ITERSALTED_S2K
 	   82 01 08 = SHA256
@@ -1382,6 +1404,12 @@ gpg_do_write_prvkey (enum kind_of_key kk, const uint8_t *key_data,
       if (prvkey_len != 32)
 	return -1;
     }
+  else if (attr == ALGO_X448)
+    {
+      pubkey_len = prvkey_len;
+      if (prvkey_len != 56)
+	return -1;
+    }
   else				/* RSA */
     {
       int key_size = gpg_get_algo_attr_key_size (kk, GPG_KEY_STORAGE);
@@ -1632,7 +1660,7 @@ proc_key_import (const uint8_t *data, int len)
 
   attr = gpg_get_algo_attr (kk);
 
-  if ((len <= 12 && (attr == ALGO_SECP256K1
+  if ((len <= 12 && (attr == ALGO_SECP256K1 || attr == ALGO_X448
 		     || attr == ALGO_ED25519 || attr == ALGO_CURVE25519))
       || (len <= 22 && attr == ALGO_RSA2K) || (len <= 24 && attr == ALGO_RSA4K))
     {					    /* Deletion of the key */
@@ -1689,6 +1717,17 @@ proc_key_import (const uint8_t *data, int len)
 	priv[31-i] = data[12+i];
       ecdh_compute_public_25519 (priv, pubkey);
       r = gpg_do_write_prvkey (kk, priv, 32, keystring_admin, pubkey);
+    }
+  else if (attr == ALGO_X448)
+    {
+      uint8_t priv[56];
+
+      if (len - 12 != 56)
+	return 0;		/* Error.  */
+
+      memcpy (priv, data+12, 56);
+      ecdh_compute_public_x448 (pubkey, priv);
+      r = gpg_do_write_prvkey (kk, priv, 56, keystring_admin, pubkey);
     }
 
   if (r < 0)
@@ -2112,7 +2151,7 @@ copy_do (const struct do_table_entry *do_p, int with_tag)
       {
 	void (*do_func)(uint16_t, int) = (void (*)(uint16_t, int))do_p->obj;
 
-        do_func (do_p->tag, with_tag);
+	do_func (do_p->tag, with_tag);
 	return 1;
       }
     case DO_PROC_READWRITE:
@@ -2303,9 +2342,21 @@ gpg_do_public_key (uint8_t kk_byte)
       {
 	/*TAG*/          /* LEN = 32 */
 	*res_p++ = 0x86; *res_p++ = 0x20;
-	/* 32-byte binary (little endian): Y with parity or X*/
+	/* 32-byte binary (little endian): Y with parity or X */
 	memcpy (res_p, pubkey, 32);
 	res_p += 32;
+      }
+    }
+  else if (attr == ALGO_X448)
+    {				/* ECDH using X448 */
+      /* LEN */
+      *res_p++ = 2 + 56;
+      {
+	/*TAG*/          /* LEN = 56 */
+	*res_p++ = 0x86; *res_p++ = 0x38;
+	/* 56-byte binary (little endian): X */
+	memcpy (res_p, pubkey, 56);
+	res_p += 56;
       }
     }
   else
@@ -2447,6 +2498,16 @@ gpg_do_keygen (uint8_t *buf)
       d[31] |= 64;
       prv = d;
       ecdh_compute_public_25519 (prv, pubkey);
+    }
+  else if (attr == ALGO_X448)
+    {
+      rnd = random_bytes_get ();
+      memcpy (d, rnd, 32);
+      random_bytes_free (rnd);
+      rnd = random_bytes_get ();
+      memcpy (d+32, rnd, 24);
+      prv = d;
+      ecdh_compute_public_x448 (pubkey, prv);
     }
   else
     {
