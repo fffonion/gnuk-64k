@@ -1,6 +1,7 @@
 /*                                                    -*- coding: utf-8 -*-
- * ecc-edwards.c - Elliptic curve computation for
+ * ecc-ed25519.c - Elliptic curve computation for
  *                 the twisted Edwards curve: -x^2 + y^2 = 1 + d*x^2*y^2
+ *                 d = -121665/121666
  *
  * Copyright (C) 2014, 2017  Free Software Initiative of Japan
  * Author: NIIBE Yutaka <gniibe@fsij.org>
@@ -586,7 +587,7 @@ bnX_mul_C (uint32_t *r, const uint32_t *q, int q_size)
 /**
  * @brief R = A mod M (using M=2^252+C) (Barret reduction)
  *
- * See HAC 14.47.
+ * See HAC 14.47 and 14.52.
  */
 static void
 mod_reduce_M (bn256 *R, const bn512 *A)
