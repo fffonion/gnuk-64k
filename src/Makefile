@@ -10,7 +10,7 @@ CSRC = main.c call-rsa.c \
 	usb-ccid.c openpgp.c ac.c openpgp-do.c flash.c \
 	bn.c mod.c \
 	modp256k1.c jpc_p256k1.c ec_p256k1.c call-ec_p256k1.c \
-	mod25638.c ecc-edwards.c ecc-mont.c sha512.c \
+	mod25638.c ecc-ed25519.c ecc-mont.c sha512.c \
 	p448.c ecc-x448.c \
 	random.c neug.c sha256.c
 
