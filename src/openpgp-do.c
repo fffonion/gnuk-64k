@@ -35,6 +35,7 @@
 #include "polarssl/config.h"
 #include "polarssl/aes.h"
 #include "sha512.h"
+#include "shake256.h"
 
 /* Forward declaration */
 #define CLEAN_PAGE_FULL 1
@@ -304,14 +305,14 @@ get_algo_attr_data_object (enum kind_of_key kk)
       return algorithm_attr_rsa4k;
     case ALGO_SECP256K1:
       return algorithm_attr_p256k1;
-    case ALGO_ED25519:
-      return algorithm_attr_ed25519;
     case ALGO_CURVE25519:
       return algorithm_attr_cv25519;
-    case ALGO_X448:
-      return algorithm_attr_x448;
+    case ALGO_ED25519:
+      return algorithm_attr_ed25519;
     case ALGO_ED448:
       return algorithm_attr_ed448;
+    case ALGO_X448:
+      return algorithm_attr_x448;
     default:
       return algorithm_attr_rsa2k;
     }
@@ -339,6 +340,11 @@ gpg_get_algo_attr_key_size (enum kind_of_key kk, enum size_of_key s)
 	return 64;
       else
 	return 32;
+    case ALGO_CURVE25519:
+      if (s == GPG_KEY_STORAGE)
+	return 64;
+      else
+	return 32;
     case ALGO_ED25519:
       if (s == GPG_KEY_STORAGE)
 	return 128;
@@ -346,11 +352,13 @@ gpg_get_algo_attr_key_size (enum kind_of_key kk, enum size_of_key s)
 	return 32;
       else
 	return 64;
-    case ALGO_CURVE25519:
+    case ALGO_ED448:
       if (s == GPG_KEY_STORAGE)
-	return 64;
+	return 256;
+      else if (s == GPG_KEY_PUBLIC)
+	return 57;
       else
-	return 32;
+	return 114;
     case ALGO_X448:
       if (s == GPG_KEY_STORAGE)
 	return 112;
@@ -1406,16 +1414,22 @@ gpg_do_write_prvkey (enum kind_of_key kk, const uint8_t *key_data,
       if (prvkey_len != 32)
 	return -1;
     }
+  else if (attr == ALGO_CURVE25519)
+    {
+      pubkey_len = prvkey_len;
+      if (prvkey_len != 32)
+	return -1;
+    }
   else if (attr == ALGO_ED25519)
     {
       pubkey_len = prvkey_len / 2;
       if (prvkey_len != 64)
 	return -1;
     }
-  else if (attr == ALGO_CURVE25519)
+  else if (attr == ALGO_ED448)
     {
-      pubkey_len = prvkey_len;
-      if (prvkey_len != 32)
+      pubkey_len = prvkey_len / 2;
+      if (prvkey_len != 114)
 	return -1;
     }
   else if (attr == ALGO_X448)
@@ -1674,8 +1688,9 @@ proc_key_import (const uint8_t *data, int len)
 
   attr = gpg_get_algo_attr (kk);
 
-  if ((len <= 12 && (attr == ALGO_SECP256K1 || attr == ALGO_X448
-		     || attr == ALGO_ED25519 || attr == ALGO_CURVE25519))
+  if ((len <= 12 && (attr == ALGO_SECP256K1 || attr == ALGO_CURVE25519
+		     || attr == ALGO_ED25519 || attr == ALGO_ED448
+		     || attr == ALGO_X448))
       || (len <= 22 && attr == ALGO_RSA2K) || (len <= 24 && attr == ALGO_RSA4K))
     {					    /* Deletion of the key */
       gpg_do_delete_prvkey (kk, CLEAN_SINGLE);
@@ -1705,6 +1720,19 @@ proc_key_import (const uint8_t *data, int len)
 	r = gpg_do_write_prvkey (kk, &data[12], len - 12, keystring_admin,
 				 pubkey);
     }
+  else if (attr == ALGO_CURVE25519)
+    {
+      uint8_t priv[32];
+      int i;
+
+      if (len - 12 != 32)
+	return 0;		/* Error.  */
+
+      for (i = 0; i < 32; i++)
+	priv[31-i] = data[12+i];
+      ecdh_compute_public_25519 (priv, pubkey);
+      r = gpg_do_write_prvkey (kk, priv, 32, keystring_admin, pubkey);
+    }
   else if (attr == ALGO_ED25519)
     {
       uint8_t hash[64];
@@ -1719,18 +1747,19 @@ proc_key_import (const uint8_t *data, int len)
       eddsa_compute_public_25519 (hash, pubkey);
       r = gpg_do_write_prvkey (kk, hash, 64, keystring_admin, pubkey);
     }
-  else if (attr == ALGO_CURVE25519)
+  else if (attr == ALGO_ED448)
     {
-      uint8_t priv[32];
-      int i;
+      shake_context ctx;
+      uint8_t hash[114];
 
       if (len - 12 != 32)
 	return 0;		/* Error.  */
 
-      for (i = 0; i < 32; i++)
-	priv[31-i] = data[12+i];
-      ecdh_compute_public_25519 (priv, pubkey);
-      r = gpg_do_write_prvkey (kk, priv, 32, keystring_admin, pubkey);
+      shake256_start (&ctx);
+      shake256_update (&ctx, &data[12], 57);
+      shake256_finish (&ctx, hash, 2*57);
+      ed448_compute_public (pubkey, pubkey);
+      r = gpg_do_write_prvkey (kk, hash, 114, keystring_admin, pubkey);
     }
   else if (attr == ALGO_X448)
     {
@@ -2361,6 +2390,18 @@ gpg_do_public_key (uint8_t kk_byte)
 	res_p += 32;
       }
     }
+  else if (attr == ALGO_ED448)
+    {				/* ECDH using X448 */
+      /* LEN */
+      *res_p++ = 2 + 57;
+      {
+	/*TAG*/          /* LEN = 57 */
+	*res_p++ = 0x86; *res_p++ = 0x39;
+	/* 57-byte binary (little endian): X */
+	memcpy (res_p, pubkey, 57);
+	res_p += 57;
+      }
+    }
   else if (attr == ALGO_X448)
     {				/* ECDH using X448 */
       /* LEN */
@@ -2491,6 +2532,17 @@ gpg_do_keygen (uint8_t *buf)
       prv = d;
       r = ecc_compute_public_p256k1 (prv, pubkey);
     }
+  else if (attr == ALGO_CURVE25519)
+    {
+      rnd = random_bytes_get ();
+      memcpy (d, rnd, 32);
+      random_bytes_free (rnd);
+      d[0] &= 248;
+      d[31] &= 127;
+      d[31] |= 64;
+      prv = d;
+      ecdh_compute_public_25519 (prv, pubkey);
+    }
   else if (attr == ALGO_ED25519)
     {
       rnd = random_bytes_get ();
@@ -2502,16 +2554,19 @@ gpg_do_keygen (uint8_t *buf)
       prv = d;
       eddsa_compute_public_25519 (d, pubkey);
     }
-  else if (attr == ALGO_CURVE25519)
+  else if (attr == ALGO_ED448)
     {
+      shake_context ctx;
       rnd = random_bytes_get ();
-      memcpy (d, rnd, 32);
+      shake256_start (&ctx);
+      shake256_update (&ctx, rnd, 32);
       random_bytes_free (rnd);
-      d[0] &= 248;
-      d[31] &= 127;
-      d[31] |= 64;
+      rnd = random_bytes_get ();
+      shake256_update (&ctx, rnd, 25);
+      shake256_finish (&ctx, d, 2*57);
+      random_bytes_free (rnd);
       prv = d;
-      ecdh_compute_public_25519 (prv, pubkey);
+      ed448_compute_public (pubkey, prv);
     }
   else if (attr == ALGO_X448)
     {

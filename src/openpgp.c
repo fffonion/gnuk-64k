@@ -928,7 +928,8 @@ cmd_get_data (struct eventflag *ccid_comm)
 #define ECDSA_SIGNATURE_LENGTH 64
 
 #define EDDSA_HASH_LEN_MAX 256
-#define EDDSA_SIGNATURE_LENGTH 64
+#define ED25519_SIGNATURE_LENGTH 64
+#define ED448_SIGNATURE_LENGTH 114
 
 #define ECC_CIPHER_DO_HEADER_SIZE 7
 
@@ -1004,16 +1005,26 @@ cmd_pso (struct eventflag *ccid_comm)
 	}
       else if (attr == ALGO_ED25519)
 	{
-	  uint32_t output[64/4];	/* Require 4-byte alignment. */
+	  uint32_t output[ED25519_SIGNATURE_LENGTH/4]; /* Require 4-byte alignment. */
 
 	  cs = chopstx_setcancelstate (0);
-	  result_len = EDDSA_SIGNATURE_LENGTH;
+	  result_len = ED25519_SIGNATURE_LENGTH;
 	  r = eddsa_sign_25519 (apdu.cmd_apdu_data, len, output,
 				kd[GPG_KEY_FOR_SIGNING].data,
 				kd[GPG_KEY_FOR_SIGNING].data+32,
 				kd[GPG_KEY_FOR_SIGNING].pubkey);
 	  chopstx_setcancelstate (cs);
-	  memcpy (res_APDU, output, EDDSA_SIGNATURE_LENGTH);
+	  memcpy (res_APDU, output, ED25519_SIGNATURE_LENGTH);
+	}
+      else if (attr == ALGO_ED448)
+	{
+	  cs = chopstx_setcancelstate (0);
+	  result_len = ED448_SIGNATURE_LENGTH;
+	  r = ed448_sign (res_APDU, apdu.cmd_apdu_data, len,
+			  kd[GPG_KEY_FOR_SIGNING].data,
+			  kd[GPG_KEY_FOR_SIGNING].data+57,
+			  kd[GPG_KEY_FOR_SIGNING].pubkey);
+	  chopstx_setcancelstate (cs);
 	}
       else
 	{
@@ -1207,16 +1218,26 @@ cmd_internal_authenticate (struct eventflag *ccid_comm)
     }
   else if (attr == ALGO_ED25519)
     {
-      uint32_t output[64/4];	/* Require 4-byte alignment. */
+      uint32_t output[ED25519_SIGNATURE_LENGTH/4]; /* Require 4-byte alignment. */
 
       cs = chopstx_setcancelstate (0);
-      result_len = EDDSA_SIGNATURE_LENGTH;
+      result_len = ED25519_SIGNATURE_LENGTH;
       r = eddsa_sign_25519 (apdu.cmd_apdu_data, len, output,
 			    kd[GPG_KEY_FOR_AUTHENTICATION].data,
 			    kd[GPG_KEY_FOR_AUTHENTICATION].data+32,
 			    kd[GPG_KEY_FOR_AUTHENTICATION].pubkey);
       chopstx_setcancelstate (cs);
-      memcpy (res_APDU, output, EDDSA_SIGNATURE_LENGTH);
+      memcpy (res_APDU, output, ED25519_SIGNATURE_LENGTH);
+    }
+  else if (attr == ALGO_ED448)
+    {
+      cs = chopstx_setcancelstate (0);
+      result_len = ED448_SIGNATURE_LENGTH;
+      r = ed448_sign (res_APDU, apdu.cmd_apdu_data, len,
+		      kd[GPG_KEY_FOR_AUTHENTICATION].data,
+		      kd[GPG_KEY_FOR_AUTHENTICATION].data+57,
+		      kd[GPG_KEY_FOR_AUTHENTICATION].pubkey);
+      chopstx_setcancelstate (cs);
     }
 
   if (r == 0)

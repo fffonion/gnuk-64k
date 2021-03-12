@@ -290,6 +290,10 @@ void ecdh_compute_public_x448 (uint8_t *pubkey, const uint8_t *key_data);
 int ecdh_decrypt_x448 (uint8_t *output, const uint8_t *input,
 		       const uint8_t *key_data);
 
+int ed448_sign (uint8_t *out, const uint8_t *input, unsigned int ilen,
+		const uint8_t *a_in, const uint8_t *seed, const uint8_t *pk);
+void ed448_compute_public (uint8_t *pk, const uint8_t *a_in);
+
 
 const uint8_t *gpg_do_read_simple (uint8_t);
 void gpg_do_write_simple (uint8_t, const uint8_t *, int);

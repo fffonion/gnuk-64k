@@ -579,8 +579,8 @@ compute_kG_448 (uint8_t *out, const uint8_t *k)
 #define DOM448_LEN   8
 
 int
-eddsa_sign_448 (uint8_t *out, const uint8_t *input, unsigned int ilen,
-		const uint8_t *a_in, const uint8_t *seed, const uint8_t *pk)
+ed448_sign (uint8_t *out, const uint8_t *input, unsigned int ilen,
+	    const uint8_t *a_in, const uint8_t *seed, const uint8_t *pk)
 {
   bn448 a[1], k[1], s[1];
   shake_context ctx;
@@ -633,7 +633,7 @@ eddsa_sign_448 (uint8_t *out, const uint8_t *input, unsigned int ilen,
 
 
 void
-eddsa_public_key_448 (uint8_t *pk, const uint8_t *a_in)
+ed448_compute_public (uint8_t *pk, const uint8_t *a_in)
 {
 
   bn448 a[1];
