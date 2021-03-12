@@ -1428,7 +1428,7 @@ gpg_do_write_prvkey (enum kind_of_key kk, const uint8_t *key_data,
     }
   else if (attr == ALGO_ED448)
     {
-      pubkey_len = prvkey_len / 2;
+      pubkey_len = prvkey_len / 2 + 1; /* +1 to be even.  */
       if (prvkey_len != 114)
 	return -1;
     }
@@ -1759,6 +1759,7 @@ proc_key_import (const uint8_t *data, int len)
       shake256_update (&ctx, &data[12], 57);
       shake256_finish (&ctx, hash, 2*57);
       ed448_compute_public (pubkey, hash);
+      pubkey[57] = 0;
       r = gpg_do_write_prvkey (kk, hash, 114, keystring_admin, pubkey);
     }
   else if (attr == ALGO_X448)
@@ -2567,6 +2568,7 @@ gpg_do_keygen (uint8_t *buf)
       random_bytes_free (rnd);
       prv = d;
       ed448_compute_public (pubkey, prv);
+      pubkey[57] = 0;
     }
   else if (attr == ALGO_X448)
     {
