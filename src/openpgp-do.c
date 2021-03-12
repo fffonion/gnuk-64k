@@ -1752,13 +1752,13 @@ proc_key_import (const uint8_t *data, int len)
       shake_context ctx;
       uint8_t hash[114];
 
-      if (len - 12 != 32)
+      if (len - 12 != 57)
 	return 0;		/* Error.  */
 
       shake256_start (&ctx);
       shake256_update (&ctx, &data[12], 57);
       shake256_finish (&ctx, hash, 2*57);
-      ed448_compute_public (pubkey, pubkey);
+      ed448_compute_public (pubkey, hash);
       r = gpg_do_write_prvkey (kk, hash, 114, keystring_admin, pubkey);
     }
   else if (attr == ALGO_X448)
