@@ -150,6 +150,13 @@ static const uint8_t feature_mngmnt[] __attribute__ ((aligned (1))) = {
 #define OPENPGP_ALGO_ECDSA 0x13
 #define OPENPGP_ALGO_EDDSA 0x16 /* It catches 22, finally.  */
 
+static const uint8_t algorithm_attr_ed448[] __attribute__ ((aligned (1))) = {
+  4,
+  OPENPGP_ALGO_EDDSA,
+  /* OID of Ed448 */
+  0x2b, 0x65, 0x71
+};
+
 static const uint8_t algorithm_attr_x448[] __attribute__ ((aligned (1))) = {
   4,
   OPENPGP_ALGO_ECDH,
@@ -303,6 +310,8 @@ get_algo_attr_data_object (enum kind_of_key kk)
       return algorithm_attr_cv25519;
     case ALGO_X448:
       return algorithm_attr_x448;
+    case ALGO_ED448:
+      return algorithm_attr_ed448;
     default:
       return algorithm_attr_rsa2k;
     }
@@ -720,7 +729,10 @@ do_alg_info (uint16_t tag, int with_tag)
       copy_do_1 (tag_algo, algorithm_attr_rsa4k, 1);
       copy_do_1 (tag_algo, algorithm_attr_p256k1, 1);
       if (i == 0 || i == 2)
-	copy_do_1 (tag_algo, algorithm_attr_ed25519, 1);
+	{
+	  copy_do_1 (tag_algo, algorithm_attr_ed25519, 1);
+	  copy_do_1 (tag_algo, algorithm_attr_ed448, 1);
+	}
       if (i == 1)
 	{
 	  copy_do_1 (tag_algo, algorithm_attr_cv25519, 1);
@@ -796,7 +808,9 @@ rw_algorithm_attr (uint16_t tag, int with_tag,
 
       if (len == 4)
 	{
-	  if (memcmp (data, algorithm_attr_x448+1, 4) == 0)
+	  if (memcmp (data, algorithm_attr_ed448+1, 4) == 0)
+	    algo = ALGO_ED448;
+	  else if (memcmp (data, algorithm_attr_x448+1, 4) == 0)
 	    algo = ALGO_X448;
 	}
       if (len == 6)

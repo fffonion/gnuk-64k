@@ -121,6 +121,7 @@ const uint8_t *gpg_get_firmware_update_key (uint8_t keyno);
 #define ALGO_ED25519    3
 #define ALGO_CURVE25519 4
 #define ALGO_X448       5
+#define ALGO_ED448      6
 #define ALGO_RSA2K      255
 
 enum kind_of_key {
