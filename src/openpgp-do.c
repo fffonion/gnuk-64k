@@ -2392,7 +2392,7 @@ gpg_do_public_key (uint8_t kk_byte)
       }
     }
   else if (attr == ALGO_ED448)
-    {				/* ECDH using X448 */
+    {				/* EdDSA using Ed448 */
       /* LEN */
       *res_p++ = 2 + 57;
       {
