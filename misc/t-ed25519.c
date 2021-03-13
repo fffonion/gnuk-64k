@@ -6,14 +6,14 @@
  * Run following commands.  The file t-ed25519.inp is available in GNU
  * libgcrypt source code under 'tests' directory.
 
-  gcc -Wall -c ecc-edwards.c
+  gcc -Wall -c ecc-ed25519.c
   gcc -Wall -c -DBN256_NO_RANDOM -DBN256_C_IMPLEMENTATION bn.c
   gcc -Wall -c mod.c
   gcc -Wall -c -DBN256_C_IMPLEMENTATION mod25638.c
   gcc -Wall -c sha512.c
-  gcc -Wall -c t-eddsa.c
-  gcc -o t-eddsa t-eddsa.o ecc-edwards.o bn.o mod.o mod25638.o sha512.o
-  ./t-eddsa < ./t-ed25519.inp
+  gcc -Wall -c t-ed25519.c
+  gcc -o t-ed25519 t-ed25519.o ecc-ed25519.o bn.o mod.o mod25638.o sha512.o
+  ./t-ed25519 < ./t-ed25519.inp
 
  *
  */
