@@ -586,12 +586,10 @@ ed448_sign (uint8_t *out, const uint8_t *input, unsigned int ilen,
   shake_context ctx;
   const unsigned char x_olen[2] = { 0, 0 };
   uint32_t hash[BN912_WORDS];
-  uint8_t *r;
+  uint8_t r[57];
   uint32_t carry, borrow;
 
   memset (hash, 0, sizeof (hash));
-
-  r = out;
 
   memcpy (a, a_in, sizeof (bn448));
   a->word[13] |= 0x80000000;
@@ -625,6 +623,7 @@ ed448_sign (uint8_t *out, const uint8_t *input, unsigned int ilen,
   borrow = bn448_sub (s, s, M);
   bn448_add_cond (s, M, (borrow && !carry));
 
+  memcpy (out, r, 57);
   memcpy (out+57, s, 56);
   out[114-1] = 0;
 

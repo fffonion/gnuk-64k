@@ -358,7 +358,7 @@ gpg_get_algo_attr_key_size (enum kind_of_key kk, enum size_of_key s)
       else if (s == GPG_KEY_PUBLIC)
 	return 57;
       else
-	return 114;
+	return 128;
     case ALGO_X448:
       if (s == GPG_KEY_STORAGE)
 	return 112;
@@ -1428,8 +1428,8 @@ gpg_do_write_prvkey (enum kind_of_key kk, const uint8_t *key_data,
     }
   else if (attr == ALGO_ED448)
     {
-      pubkey_len = prvkey_len / 2 + 1; /* +1 to be even.  */
-      if (prvkey_len != 114)
+      pubkey_len = 57 + 1; /* +1 to be even.  */
+      if (prvkey_len != 128)
 	return -1;
     }
   else if (attr == ALGO_X448)
@@ -1750,7 +1750,7 @@ proc_key_import (const uint8_t *data, int len)
   else if (attr == ALGO_ED448)
     {
       shake_context ctx;
-      uint8_t hash[114];
+      uint8_t hash[128];
 
       if (len - 12 != 57)
 	return 0;		/* Error.  */
@@ -1758,9 +1758,10 @@ proc_key_import (const uint8_t *data, int len)
       shake256_start (&ctx);
       shake256_update (&ctx, &data[12], 57);
       shake256_finish (&ctx, hash, 2*57);
+      memset (hash+114, 0, 128-114);
       ed448_compute_public (pubkey, hash);
       pubkey[57] = 0;
-      r = gpg_do_write_prvkey (kk, hash, 114, keystring_admin, pubkey);
+      r = gpg_do_write_prvkey (kk, hash, 128, keystring_admin, pubkey);
     }
   else if (attr == ALGO_X448)
     {
