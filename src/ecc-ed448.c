@@ -575,7 +575,7 @@ compute_kG_448 (uint8_t *out, const uint8_t *k)
 
 #define SEED_SIZE 57
 
-#define DOM448       "SigEd448"
+#define DOM448       (const uint8_t *)"SigEd448"
 #define DOM448_LEN   8
 
 int
