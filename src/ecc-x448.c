@@ -22,6 +22,16 @@
  *
  */
 
+/*
+ * IMPLEMENTATION NOTE
+ *
+ * (0) We assume that the processor has no cache, nor branch target
+ *     prediction.
+ *     We don't avoid conditional jump if both cases have same timing,
+ *     either.
+ *
+ */
+
 #include <stdint.h>
 #include <string.h>
 
@@ -29,47 +39,58 @@
 
 #define N_LIMBS 14
 
+/**
+ * @brief  Process Montgomery double-and-add
+ *
+ * With Q0, Q1, DIF (= Q0 - Q1), compute PRD = 2Q0 into Q0,
+ * and computute SUM = Q0 + Q1 into Q1
+ *
+ */
+static void
+mont_d_and_a (p448_t q0_x[1], p448_t q0_z[1], p448_t q1_x[1], p448_t q1_z[1],
+	      const p448_t dif_x[1])
+{
+  p448_t reg0[1], reg1[1], reg2[1], reg3[1];
+#define c  reg0
+#define d  reg1
+#define a  reg2
+#define b  reg3
+#define cb q0_x
+#define da q1_x
+#define aa reg0
+#define bb reg1
+#define da_plus_cb reg2
+#define da_minus_cb reg3
+#define e  reg1
+#define dacb_2 reg2
+#define a24_e reg3
+#define aa__a24_e reg2
+					p448_add (c, q1_x, q1_z);
+					p448_sub (d, q1_x, q1_z);
+  p448_add (a, q0_x, q0_z);
+  p448_sub (b, q0_x, q0_z);
+					p448_mul (cb, c, b);
+					p448_mul (da, d, a);
+  p448_sqr (aa, a);
+  p448_sqr (bb, b);
+					p448_add (da_plus_cb, da, cb);
+					p448_sub (da_minus_cb, da, cb);
+  p448_mul (q0_x, aa, bb);
+  p448_sub (e, aa, bb);
+					p448_sqr (q1_x, da_plus_cb);
+					p448_sqr (dacb_2, da_minus_cb);
+  p448_mul_39081 (a24_e, e);
+					p448_mul (q1_z, dacb_2, dif_x);
+  p448_add (aa__a24_e, aa, a24_e);
+  p448_mul (q0_z, e, aa__a24_e);
+}
+
+
 typedef struct
 {
   p448_t x[1];
   p448_t z[1];
 } pt;
-
-
-/**
- * @brief  Process Montgomery double-and-add
- *
- * With Q0, Q1, DIF (= Q0 - Q1), compute PRD = 2Q0, SUM = Q0 + Q1
- * Q0 and Q1 are clobbered.
- *
- */
-static void
-mont_d_and_a (pt *prd, pt *sum, pt *q0, pt *q1, const p448_t dif_x[1])
-{
-  p448_t q1__z[1];
-  p448_t q0__z[1];
-  p448_t sum__x[1];
-#define sum__z q1__z
-#define prd__z q1__z
-                                        p448_add (sum->x, q1->x, q1->z);
-                                        p448_sub (q1->z, q1->x, q1->z);
-  p448_add (prd->x, q0->x, q0->z);
-  p448_sub (q0->z, q0->x, q0->z);
-                                        p448_mul (q1->x, q0->z, sum->x);
-                                        p448_mul (q1__z, prd->x, q1->z);
-  p448_sqr (q0->x, prd->x);
-  p448_sqr (q0__z, q0->z);
-                                        p448_add (sum__x, q1->x, q1__z);
-                                        p448_sub (q1->z, q1->x, q1__z);
-  p448_mul (prd->x, q0->x, q0__z);
-  p448_sub (q0->z, q0->x, q0__z);
-                                        p448_sqr (sum->x, sum__x);
-                                        p448_sqr (sum__z, q1->z);
-  p448_mul_39081 (prd->z, q0->z);
-                                        p448_mul (sum->z, sum__z, dif_x);
-  p448_add (prd__z, q0->x, prd->z);
-  p448_mul (prd->z, prd__z, q0->z);
-}
 
 
 /**
@@ -83,7 +104,7 @@ static void
 compute_nQ (uint8_t *res, const uint32_t n[N_LIMBS], const p448_t q_x[1])
 {
   int i, j;
-  pt p0[1], p1[1], p0_[1], p1_[1];
+  pt p0[1], p1[1];
 #define tmp0 p0->z
 #define tmp1 p1->z
 
@@ -101,24 +122,17 @@ compute_nQ (uint8_t *res, const uint32_t n[N_LIMBS], const p448_t q_x[1])
     {
       uint32_t u = n[N_LIMBS-i-1];
 
-      for (j = 0; j < 16; j++)
+      for (j = 0; j < 32; j++)
 	{
-	  pt *q0, *q1;
-	  pt *sum_n, *prd_n;
+	  p448_t *q0_x, *q0_z, *q1_x, *q1_z;
 
 	  if ((u & 0x80000000))
-	    q0 = p1,  q1 = p0,  sum_n = p0_, prd_n = p1_;
+	    q0_x = p1->x, q0_z = p1->z,   q1_x = p0->x, q1_z = p0->z;
 	  else
-	    q0 = p0,  q1 = p1,  sum_n = p1_, prd_n = p0_;
-	  mont_d_and_a (prd_n, sum_n, q0, q1, q_x);
+	    q0_x = p0->x, q0_z = p0->z,   q1_x = p1->x, q1_z = p1->z;
+	  mont_d_and_a (q0_x, q0_z, q1_x, q1_z, q_x);
 
-	  if ((u & 0x40000000))
-	    q0 = p1_, q1 = p0_, sum_n = p0,  prd_n = p1;
-	  else
-	    q0 = p0_, q1 = p1_, sum_n = p1,  prd_n = p0;
-	  mont_d_and_a (prd_n, sum_n, q0, q1, q_x);
-
-	  u <<= 2;
+	  u <<= 1;
 	}
     }
 
