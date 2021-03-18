@@ -251,13 +251,115 @@ p448_mul_39081 (p448_t *__restrict__ x, const p448_t *a)
   px[9] += carry >> 28;
 }
 
+/*
+                   ah bh ch dh eh fh gh HH
+                   bg cg dg eg fg GG
+                   cf df ef FF
+                   de EE
+                                        DD
+                                  CC dc ec
+                            BB cb db eb fb
+                      AA ba ca da ea fa ga
+
+ */
 /**
  * Compute X = A^2 mod p448
  */
 void
 p448_sqr (p448_t *__restrict__ x, const p448_t *a)
 {
-  p448_mul (x, a, a);
+  int i, j;
+  uint64_t v64_0, v64_1, v64_2, v64_3;
+  uint32_t p_q[8];
+  uint32_t *px;
+  const uint32_t *pa;
+
+  px = x->limb;
+  pa = a->limb;
+
+  /* Firstly, we do Karatsuba preparation.  */
+  for (i = 0; i < 8; i++)
+    p_q[i] = pa[i] + pa[i+8];
+
+  v64_0 = v64_1 = 0;
+
+  for (j = 0; j < 8; j++)
+    {
+      v64_2 = 0;
+
+      /* Compute lower half of limbs (lower224) */
+      /*  __  <-- j
+       * | /        |
+       * |/         v i
+       *
+       */
+      for (i = 0; i <= j/2; i++)
+	{
+	  int cond = ((j & 1) || i != j/2);
+
+	  v64_3 = mul64_32x32 (pa[8+j-i], pa[8+i]);/* accumulating q*q     */
+	  v64_0 += (v64_3 << cond);
+	  v64_3 = mul64_32x32 (p_q[j-i], p_q[i]);  /* accumulating p_q^2   */
+	  v64_1 += (v64_3 << cond);
+	  v64_3 = mul64_32x32 (pa[j-i], pa[i]);    /* accumulating p*p     */
+	  v64_2 += (v64_3 << cond);
+	}
+
+      v64_0 += v64_2; /* Compute pp+qq.         */
+      v64_1 -= v64_2; /* Compute p_q^2 - pp.  */
+
+      v64_2 = 0;
+      /* Compute upper half of limbs (upper224) */
+      /*     <-- j
+       *  /|        |
+       * /_|        v i
+       *
+       */
+      if (!(j & 1))
+	{
+	  v64_0 -= mul64_32x32 (pa[4+i-1], pa[4+i-1]);	/* accumulating -p*p  */
+	  v64_1 += mul64_32x32 (pa[12+i-1], pa[12+i-1]);/* accumulating q*q   */
+	  v64_2 += mul64_32x32 (p_q[4+i-1], p_q[4+i-1]);/* accumulating p_q^2 */
+	}
+
+      for (; i < 4; i++)
+	{
+	  v64_3 = mul64_32x32 (pa[4+j-i], pa[4+i]);
+	  v64_0 -= (v64_3 << 1);   /* accumulating -p*p	   */
+	  v64_3 = mul64_32x32 (pa[12+j-i], pa[12+i]);
+	  v64_1 += (v64_3 << 1);   /* accumulating q*q	   */
+	  v64_3 = mul64_32x32 (p_q[4+j-i], p_q[4+i]);
+	  v64_2 += (v64_3 << 1);   /* accumulating p_q^2   */
+	}
+
+      v64_0 += v64_2; /* Compute p_q^2 - p^2.  */
+      v64_1 += v64_2; /* Compute p_q^2 + q^2.  */
+
+      px[j] = v64_0 & MASK_28BITS;
+      px[j+8] = v64_1 & MASK_28BITS;
+
+      v64_0 >>= 28;
+      v64_1 >>= 28;
+    }
+
+  /* "Carry" remains as: 2^448 * v64_1 + 2^224 * v64_0 */
+  /*
+   * Subtract p448 times v64_1 to clear msbs, meaning, clear those
+   * bits and adding v64_1 to px[0] and px[8] (in mod p448
+   * calculation).
+   */
+  v64_0 += v64_1;
+  v64_0 += px[8];
+  v64_1 += px[0];
+  px[8] = v64_0 & MASK_28BITS;
+  px[0] = v64_1 & MASK_28BITS;
+
+  /* Still, it carries to... */
+  v64_0 >>= 28;
+  v64_1 >>= 28;
+  px[9] += v64_0;
+  px[1] += v64_1;
+  /* DONE.  */
 }
 
 /**
