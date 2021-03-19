@@ -220,7 +220,7 @@ p448_mul (p448_t *__restrict__ x, const p448_t *a, const p448_t *b)
  * Compute X = A * 39081
  */
 void
-p448_mul_39081 (p448_t *__restrict__ x, const p448_t *a)
+p448_mul_39081 (p448_t *x, const p448_t *a)
 {
   int i;
   const uint32_t w = 39081;

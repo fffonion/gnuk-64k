@@ -50,39 +50,38 @@ static void
 mont_d_and_a (p448_t q0_x[1], p448_t q0_z[1], p448_t q1_x[1], p448_t q1_z[1],
 	      const p448_t dif_x[1])
 {
-  p448_t reg0[1], reg1[1], reg2[1], reg3[1];
+  p448_t reg0[1], reg1[1];
 #define c  reg0
 #define d  reg1
-#define a  reg2
-#define b  reg3
+#define a  q1_x
+#define b  q1_z
 #define cb q0_x
-#define da q1_x
-#define aa reg0
+#define da reg0
+#define aa q1_z
 #define bb reg1
-#define da_plus_cb reg2
-#define da_minus_cb reg3
-#define e  reg1
-#define dacb_2 reg2
-#define a24_e reg3
-#define aa__a24_e reg2
+#define da_plus_cb q0_z
+#define da_minus_cb q1_x
+#define e  reg0
+#define dacb_2 reg1
+#define a24_e q1_x
 					p448_add (c, q1_x, q1_z);
 					p448_sub (d, q1_x, q1_z);
   p448_add (a, q0_x, q0_z);
   p448_sub (b, q0_x, q0_z);
 					p448_mul (cb, c, b);
 					p448_mul (da, d, a);
-  p448_sqr (aa, a);
   p448_sqr (bb, b);
+  p448_sqr (aa, a);
 					p448_add (da_plus_cb, da, cb);
 					p448_sub (da_minus_cb, da, cb);
   p448_mul (q0_x, aa, bb);
   p448_sub (e, aa, bb);
-					p448_sqr (q1_x, da_plus_cb);
 					p448_sqr (dacb_2, da_minus_cb);
   p448_mul_39081 (a24_e, e);
+  p448_add (aa, aa, a24_e);
+					p448_sqr (q1_x, da_plus_cb);
+  p448_mul (q0_z, e, aa);
 					p448_mul (q1_z, dacb_2, dif_x);
-  p448_add (aa__a24_e, aa, a24_e);
-  p448_mul (q0_z, e, aa__a24_e);
 }
 
 
