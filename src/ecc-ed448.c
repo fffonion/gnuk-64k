@@ -62,14 +62,14 @@ typedef struct bn912 {
   uint32_t word[ BN912_WORDS ]; /* Little endian */
 } bn912;
 
-static bn448 M[1] = {{{
+static const bn448 M[1] = {{{
   0xab5844f3, 0x2378c292, 0x8dc58f55, 0x216cc272,
   0xaed63690, 0xc44edb49, 0x7cca23e9, 0xffffffff,
   0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
   0xffffffff, 0x3fffffff
 }}};
 
-static uint32_t C[C_WORDS] = {
+static const uint32_t C[C_WORDS] = {
   0x54a7bb0d, 0xdc873d6d, 0x723a70aa, 0xde933d8d,
   0x5129c96f, 0x3bb124b6, 0x8335dc16
 };
