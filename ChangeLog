@@ -1,5 +1,40 @@
 2021-10-12  NIIBE Yutaka  <gniibe@fsij.org>
 
+	Add Ed448 and X448 support, removing NIST P-256 support.
+	* src/gnuk.h (ALGO_X448, ALGO_ED448): New.
+	(ecdsa_sign_p256r1, ecc_compute_public_p256r1): Remove.
+	(ecc_check_secret_p256r1, ecdh_decrypt_p256r1): Remove.
+	(ecdh_compute_public_x448, ecdh_decrypt_x448): New.
+	(ed448_sign, ed448_compute_public): New.
+
+	* src/openpgp-do.c (algorithm_attr_ed448): New.
+	(algorithm_attr_x448): New.
+	(algorithm_attr_p256r1): Remove.
+	(get_algo_attr_data_object): Remove for ALGO_NISTP256R1.
+	Add for ALGO_ED448 and ALGO_X448.
+	(gpg_get_algo_attr_key_size): Likewise.
+	(do_alg_info): Support Ed448 and X448 too.
+	(rw_algorithm_attr): Support Ed448 and X448 too.
+	Remove for NIST P-256.
+	(gpg_do_write_prvkey): Remove for NIST P-256.
+	Add for Ed448 and X448.
+	(proc_key_import): Likewise.
+	(gpg_do_public_key): Likewise.
+	(gpg_do_keygen): Likewise.
+
+	* src/openpgp.c (ED25519_SIGNATURE_LENGTH): Rename from
+	EDDSA_SIGNATURE_LENGTH.
+	(cmd_pso): Remove for ALGO_NISTP256R1.
+	Add for ALGO_ED448 and ALGO_X448.
+	(cmd_internal_authenticate): Likewise.
+
+	* src/p448.c, ecc-x448.c, ecc-ed448.c, shake256.c: New.
+
+	* src/ecc-ed25519.c: Move from ecc-edwards.c.
+	* misc/t-ed25519.c: Move from t-edwards.c.
+
+2021-10-12  NIIBE Yutaka  <gniibe@fsij.org>
+
 	* chopstx: Update to 2.3.
 
 2021-10-11  NIIBE Yutaka  <gniibe@fsij.org>
