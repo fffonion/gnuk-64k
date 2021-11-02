@@ -1,3 +1,7 @@
+2021-11-02  NIIBE Yutaka  <gniibe@fsij.org>
+
+	* tests/: Add tests for ECC curves.  Support Yubikey.
+
 2021-10-12  NIIBE Yutaka  <gniibe@fsij.org>
 
 	Add Ed448 and X448 support, removing NIST P-256 support.
