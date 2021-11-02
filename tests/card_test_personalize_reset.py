@@ -23,9 +23,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from struct import pack
 from re import match, DOTALL
 from util import *
-import rsa_keys
 from card_const import *
 from constants_for_test import *
+import pytest
 
 class Test_Personalize_Reset(object):
     def test_login_put(self, card):
@@ -78,5 +78,8 @@ class Test_Personalize_Reset(object):
         assert v
 
     def test_delete_reset_code(self, card):
-        r = card.cmd_put_data(0x00, 0xd3, b"")
-        assert r
+        if card.is_yubikey:
+            pytest.skip("Yubikey raises 6a80 error for data object D3")
+        else:
+            r = card.cmd_put_data(0x00, 0xd3, b"")
+            assert r

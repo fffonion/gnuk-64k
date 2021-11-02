@@ -29,7 +29,5 @@ class Test_Card_KDF_Single(object):
         assert v
 
     def test_kdf_put_single(self, card):
-        r = card.cmd_put_data(0x00, 0xf9, KDF_SINGLE)
-        if r:
-            card.configure_with_kdf()
+        r = card.configure_kdf(KDF_SINGLE)
         assert r

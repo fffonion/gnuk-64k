@@ -22,7 +22,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from func_pso_auth import assert_ec_pso
 from card_const import *
 
-class Test_Card_X25519(object):
+class Test_Card_CV25519(object):
     def test_reference_vectors(self, card):
         assert card.verify(3, FACTORY_PASSPHRASE_PW3)
         assert card.verify(2, FACTORY_PASSPHRASE_PW1)
@@ -30,8 +30,8 @@ class Test_Card_X25519(object):
         assert_ec_pso(
             card=card,
             key_index=1,
-            key_attributes=KEY_ATTRIBUTES_X25519,
-            key_attribute_caption='x25519',
+            key_attributes=KEY_ATTRIBUTES_CV25519,
+            key_attribute_caption='cv25519',
             private_key=(
                 b'\x77\x07\x6d\x0a\x73\x18\xa5\x7d\x3c\x16\xc1\x72\x51\xb2\x66\x45'
                 b'\xdf\x4c\x2f\x87\xeb\xc0\x99\x2a\xb1\x77\xfb\xa5\x1d\xb9\x2c\x2a'

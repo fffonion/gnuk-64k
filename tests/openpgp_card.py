@@ -23,14 +23,17 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from struct import pack, unpack
 from kdf_calc import kdf_calc
+from card_const import FACTORY_PASSPHRASE_PW1, FACTORY_PASSPHRASE_PW3
 
 def iso7816_compose(ins, p1, p2, data, cls=0x00, le=None):
     data_len = len(data)
     if data_len == 0:
         if not le:
             return pack('>BBBB', cls, ins, p1, p2)
-        else:
+        elif le < 256:
             return pack('>BBBBB', cls, ins, p1, p2, le)
+        else:
+            return pack('>BBBBBH', cls, ins, p1, p2, 0, le)
     else:
         if not le:
             if data_len <= 255:
@@ -54,27 +57,71 @@ class OpenPGP_Card(object):
         reader: CardReader object.
         """
 
+        self.supported_key_attrlist = [ [], [], [] ]
         self.__reader = reader
+        self.attr = [ None, None, None ]
         self.__kdf_iters = None
         self.__kdf_salt_user = None
         self.__kdf_salt_reset = None
         self.__kdf_salt_admin = None
-        self.is_gnuk = (reader.get_string(2) == "Gnuk Token")
-        self.is_emulated_gnuk = (reader.get_string(3)[-8:] == "EMULATED")
+        string2 = reader.get_string(2)
+        self.is_gnuk = (string2 == "Gnuk Token")
+        self.is_yubikey = (string2[0:7] == "YubiKey") or (string2[0:7] == "Yubikey")
 
-    def configure_with_kdf(self):
-        kdf_data = self.cmd_get_data(0x00, 0xf9)
-        if kdf_data != b"":
-            algo, subalgo, iters, salt_user, salt_reset, salt_admin, hash_user, hash_admin = parse_kdf_data(kdf_data)
-            self.__kdf_iters = iters
-            self.__kdf_salt_user = salt_user
-            self.__kdf_salt_reset = salt_reset
-            self.__kdf_salt_admin = salt_admin
-        else:
+        try:
+            string3 = reader.get_string(3)
+        except:
+            string3 = None
+
+        self.is_emulated_gnuk = (string3 and string3[-8:] == "EMULATED")
+        self.initialize_kdf()
+
+    def add_to_key_attrlist(self, no, attr):
+        self.supported_key_attrlist[no].append(attr)
+
+    def initialize_kdf(self):
+        try:
+            self.kdf_data = self.cmd_get_data(0x00, 0xf9)
+            if not self.kdf_data:
+                self.kdf_data = b""
+            self.kdf_supported = True
+        except:
+            self.kdf_data = b""
+            self.kdf_supported = False
+            if self.is_yubikey:
+                self.kdf_supported = True
+
+    def configure_kdf(self, kdf_config):
+        self.kdf_data = kdf_config
+        r = self.cmd_put_data(0x00, 0xf9, kdf_config)
+        if self.kdf_data == b"" or self.kdf_data == b"\x81\x01\x00":
+            if not self.is_gnuk and not self.is_yubikey:
+                self.change_passwd(1, FACTORY_PASSPHRASE_PW1,
+                                   FACTORY_PASSPHRASE_PW1, -1)
+                self.change_passwd(3, FACTORY_PASSPHRASE_PW3,
+                                   FACTORY_PASSPHRASE_PW3, -1)
             self.__kdf_iters = None
             self.__kdf_salt_user = None
             self.__kdf_salt_reset = None
             self.__kdf_salt_admin = None
+        else:
+            algo, subalgo, iters, salt_user, salt_reset, salt_admin, hash_user, hash_admin = parse_kdf_data(self.kdf_data)
+            self.__kdf_iters = iters
+            self.__kdf_salt_user = salt_user
+            self.__kdf_salt_reset = salt_reset
+            self.__kdf_salt_admin = salt_admin
+            if not self.is_gnuk and not self.is_yubikey:
+                self.change_passwd(1, FACTORY_PASSPHRASE_PW1,
+                                   FACTORY_PASSPHRASE_PW1, 1)
+                self.change_passwd(3, FACTORY_PASSPHRASE_PW3,
+                                   FACTORY_PASSPHRASE_PW3, 1)
+        return r
+
+    def save_algo_attribute(self, keyno, attr):
+        self.attr[keyno - 1] = attr
+
+    def saved_attribute(self, keyno):
+        return self.attr[keyno - 1]
 
     # Higher layer VERIFY possibly using KDF Data Object
     def verify(self, who, passwd):
@@ -88,20 +135,22 @@ class OpenPGP_Card(object):
             return self.cmd_verify(who, passwd)
 
     # Higher layer CHANGE_PASSWD possibly using KDF Data Object
-    def change_passwd(self, who, passwd_old, passwd_new):
+    # KDF_CHANGE: 0 no-change, -1 to be cleared, 1 to be configured
+    def change_passwd(self, who, passwd_old, passwd_new, kdf_change=0):
         if self.__kdf_iters:
             salt = self.__kdf_salt_user
             if who == 3 and self.__kdf_salt_admin:
                     salt = self.__kdf_salt_admin
-            hash_old = kdf_calc(passwd_old, salt, self.__kdf_iters)
-            if passwd_new:
+            if kdf_change <= 0:
+                hash_old = kdf_calc(passwd_old, salt, self.__kdf_iters)
+            else:
+                hash_old = passwd_old
+            if kdf_change >= 0:
                 hash_new = kdf_calc(passwd_new, salt, self.__kdf_iters)
             else:
-                hash_new = b""
+                hash_new = passwd_new
             return self.cmd_change_reference_data(who, hash_old + hash_new)
         else:
-            if not passwd_new:
-                passwd_new = b""
             return self.cmd_change_reference_data(who, passwd_old + passwd_new)
 
     # Higher layer SETUP_RESET_CODE possibly using KDF Data Object
@@ -217,7 +266,14 @@ class OpenPGP_Card(object):
         return True
 
     def cmd_get_data(self, tagh, tagl):
-        cmd_data = iso7816_compose(0xca, tagh, tagl, b"", le=254)
+        if tagh == 0 and tagl == 0xfa and \
+           (self.is_yubikey or self.__reader.is_tpdu_reader()):
+            # Special DO with larger data
+            cmd_data = iso7816_compose(0xca, tagh, tagl, b"", le=1024)
+        elif self.is_yubikey:
+            cmd_data = iso7816_compose(0xca, tagh, tagl, b"")
+        else:
+            cmd_data = iso7816_compose(0xca, tagh, tagl, b"", le=254)
         sw = self.__reader.send_cmd(cmd_data)
         if len(sw) < 2:
             raise ValueError(sw)
@@ -249,7 +305,7 @@ class OpenPGP_Card(object):
         return True
 
     def cmd_put_data_odd(self, tagh, tagl, content):
-        if self.__reader.is_tpdu_reader():
+        if self.is_yubikey or self.__reader.is_tpdu_reader() or len(content) <= 128:
             cmd_data = iso7816_compose(0xdb, tagh, tagl, content)
             sw = self.__reader.send_cmd(cmd_data)
         else:
@@ -277,7 +333,7 @@ class OpenPGP_Card(object):
         return True
 
     def cmd_pso(self, p1, p2, data):
-        if self.__reader.is_tpdu_reader():
+        if self.is_yubikey or self.__reader.is_tpdu_reader():
             cmd_data = iso7816_compose(0x2a, p1, p2, data, le=256)
             r = self.__reader.send_cmd(cmd_data)
             if len(r) < 2:
@@ -317,7 +373,7 @@ class OpenPGP_Card(object):
                 return self.cmd_get_response(sw[1])
 
     def cmd_internal_authenticate(self, data):
-        if self.__reader.is_tpdu_reader():
+        if self.is_yubikey or self.__reader.is_tpdu_reader():
             cmd_data = iso7816_compose(0x88, 0, 0, data, le=256)
         else:
             cmd_data = iso7816_compose(0x88, 0, 0, data)
@@ -340,7 +396,7 @@ class OpenPGP_Card(object):
             data = b'\xb8\x00'
         else:
             data = b'\xa4\x00'
-        if self.__reader.is_tpdu_reader():
+        if self.is_yubikey or self.__reader.is_tpdu_reader():
             cmd_data = iso7816_compose(0x47, 0x80, 0, data, le=512)
         else:
             cmd_data = iso7816_compose(0x47, 0x80, 0, data)
@@ -353,7 +409,7 @@ class OpenPGP_Card(object):
             pk = sw
         else:
             raise ValueError("%02x%02x" % (sw[0], sw[1]))
-        return (pk[9:9+256], pk[9+256+2:-2])
+        return pk
 
     def cmd_get_public_key(self, keyno):
         if keyno == 1:
@@ -362,7 +418,7 @@ class OpenPGP_Card(object):
             data = b'\xb8\x00'
         else:
             data = b'\xa4\x00'
-        if self.__reader.is_tpdu_reader():
+        if self.is_yubikey or self.__reader.is_tpdu_reader():
             cmd_data = iso7816_compose(0x47, 0x81, 0, data, le=512)
         else:
             cmd_data = iso7816_compose(0x47, 0x81, 0, data)

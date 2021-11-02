@@ -27,7 +27,7 @@ class Test_Reset_PW3(object):
     # Gnuk specific feature of clear PW3
     def test_setup_pw3_null(self, card):
         if card.is_gnuk:
-            r = card.change_passwd(3, FACTORY_PASSPHRASE_PW3, None)
+            r = card.change_passwd(3, FACTORY_PASSPHRASE_PW3, b'', kdf_change=-1)
             assert r
         else:
             pytest.skip("Gnuk only feature of clearing PW3")

@@ -26,20 +26,20 @@ from card_const import *
 
 class Test_Remove_Keys(object):
 
-    def test_rsa_keyattr_change_1(self, card):
-        r = card.cmd_put_data(0x00, 0xc1, KEY_ATTRIBUTES_RSA4K)
+    def test_keyattr_change_1(self, card):
+        r = card.cmd_put_data(0x00, 0xc1, alt_key(card, False))
         if r:
-            r = card.cmd_put_data(0x00, 0xc1, KEY_ATTRIBUTES_RSA2K)
+            r = card.cmd_put_data(0x00, 0xc1, default_key(card, False))
         assert r
 
-    def test_rsa_keyattr_change_2(self, card):
-        r = card.cmd_put_data(0x00, 0xc2, KEY_ATTRIBUTES_RSA4K)
+    def test_keyattr_change_2(self, card):
+        r = card.cmd_put_data(0x00, 0xc2, alt_key(card, True))
         if r:
-            r = card.cmd_put_data(0x00, 0xc2, KEY_ATTRIBUTES_RSA2K)
+            r = card.cmd_put_data(0x00, 0xc2, default_key(card, True))
         assert r
 
-    def test_rsa_keyattr_change_3(self, card):
-        r = card.cmd_put_data(0x00, 0xc3, KEY_ATTRIBUTES_RSA4K)
+    def test_keyattr_change_3(self, card):
+        r = card.cmd_put_data(0x00, 0xc3, alt_key(card, False))
         if r:
-            r = card.cmd_put_data(0x00, 0xc3, KEY_ATTRIBUTES_RSA2K)
+            r = card.cmd_put_data(0x00, 0xc3, default_key(card, False))
         assert r

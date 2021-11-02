@@ -30,7 +30,5 @@ class Test_Card_KDF_full(object):
         assert v
 
     def test_kdf_put_full(self, card):
-        r = card.cmd_put_data(0x00, 0xf9, KDF_FULL)
-        if r:
-            card.configure_with_kdf()
+        r = card.configure_kdf(KDF_FULL)
         assert r
