@@ -1,3 +1,8 @@
+2021-11-02  NIIBE Yutaka  <gniibe@shouwa2020.gniibe.org>
+
+	* src/ecc-mont.c (ecdh_compute_public_25519): Fix alignment
+	problem.
+
 2021-11-02  NIIBE Yutaka  <gniibe@fsij.org>
 
 	* tests/: Add tests for ECC curves.  Support Yubikey.

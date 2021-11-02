@@ -2,7 +2,7 @@
  * ecc-mont.c - Elliptic curve computation for
  *              the Montgomery curve: y^2 = x^3 + 486662*x^2 + x.
  *
- * Copyright (C) 2014, 2015, 2017  Free Software Initiative of Japan
+ * Copyright (C) 2014, 2015, 2017, 2021  Free Software Initiative of Japan
  * Author: NIIBE Yutaka <gniibe@fsij.org>
  *
  * This file is a part of Gnuk, a GnuPG USB Token implementation.
@@ -202,12 +202,14 @@ ecdh_compute_public_25519 (const uint8_t *key_data, uint8_t *pubkey)
 {
   bn256 gx[1];
   bn256 k[1];
+  bn256 pk[1];
 
   memset (gx, 0, sizeof (bn256));
   gx[0].word[0] = 9;			/* Gx = 9 */
   memcpy (k, key_data, sizeof (bn256));
 
-  compute_nQ ((bn256 *)pubkey, k, gx);
+  compute_nQ (pk, k, gx);
+  memcpy (pubkey, pk, sizeof (bn256));
 }
 
 int
