@@ -1,7 +1,8 @@
 /*
  * flash.c -- Data Objects (DO) and GPG Key handling on Flash ROM
  *
- * Copyright (C) 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018
+ * Copyright (C) 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+ *               2022
  *               Free Software Initiative of Japan
  * Author: NIIBE Yutaka <gniibe@fsij.org>
  *
@@ -82,10 +83,10 @@ extern uint8_t *flash_addr_data_storage_start;
 #define FLASH_ADDR_DATA_STORAGE_START flash_addr_data_storage_start
 #else
 /* Linker sets these symbols */
-extern uint8_t _keystore_pool;
-extern uint8_t _data_pool;
-#define FLASH_ADDR_KEY_STORAGE_START  ((&_keystore_pool))
-#define FLASH_ADDR_DATA_STORAGE_START ((&_data_pool))
+extern uint8_t _keystore_pool[];
+extern uint8_t _data_pool[];
+#define FLASH_ADDR_KEY_STORAGE_START  ((_keystore_pool))
+#define FLASH_ADDR_DATA_STORAGE_START ((_data_pool))
 #endif
 
 static int key_available_at (const uint8_t *k, int key_size)

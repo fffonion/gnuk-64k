@@ -1,7 +1,8 @@
 /*
  * main.c - main routine of Gnuk
  *
- * Copyright (C) 2010, 2011, 2012, 2013, 2015, 2016, 2017, 2018, 2021
+ * Copyright (C) 2010, 2011, 2012, 2013, 2015, 2016, 2017, 2018, 2021,
+ *               2022
  *               Free Software Initiative of Japan
  * Author: NIIBE Yutaka <gniibe@fsij.org>
  *
@@ -503,8 +504,8 @@ main (int argc, const char *argv[])
 
 #ifdef FLASH_UPGRADE_SUPPORT
   /* Set vector */
-  SCB->VTOR = (uintptr_t)&_regnual_start;
-  entry = calculate_regnual_entry_address (&_regnual_start);
+  SCB->VTOR = (uintptr_t)_regnual_start;
+  entry = calculate_regnual_entry_address (_regnual_start);
 #ifdef DFU_SUPPORT
   {
     /* Use SYS at ORIGIN_REAL instead of the one at ORIGIN */

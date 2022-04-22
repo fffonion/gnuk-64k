@@ -1,7 +1,8 @@
 /*
  * usb_ctrl.c - USB control pipe device specific code for Gnuk
  *
- * Copyright (C) 2010, 2011, 2012, 2013, 2015, 2016, 2017, 2018
+ * Copyright (C) 2010, 2011, 2012, 2013, 2015, 2016, 2017, 2018,
+ *               2022
  *               Free Software Initiative of Japan
  * Author: NIIBE Yutaka <gniibe@fsij.org>
  *
@@ -227,7 +228,7 @@ static const uint8_t lun_table[] = { 0, 0, 0, 0, };
 #endif
 
 #ifdef FLASH_UPGRADE_SUPPORT
-static const uint8_t *const mem_info[] = { &_regnual_start,  __heap_end__, };
+static const uint8_t *const mem_info[] = { _regnual_start,  __heap_end__, };
 #endif
 
 #define USB_FSIJ_GNUK_MEMINFO     0
@@ -284,7 +285,7 @@ usb_setup (struct usb_dev *dev)
 	      if (ccid_get_ccid_state () != CCID_STATE_EXITED)
 		return -1;
 
-	      if (addr < &_regnual_start || addr + arg->len > __heap_end__)
+	      if (addr < _regnual_start || addr + arg->len > __heap_end__)
 		return -1;
 
 	      if (arg->index + arg->len < 256)

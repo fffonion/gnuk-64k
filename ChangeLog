@@ -1,3 +1,18 @@
+2022-04-22  NIIBE Yutaka  <gniibe@fsij.org>
+
+	* src/gnuk.h (_regnual_start): Fix type.
+	* src/main.c (main): Fix address for _regnual_start.
+	* src/usb_ctrl.c (mem_info, usb_setup): Follow the change.
+	* src/flash.c (_keystore_pool, _data_pool): Fix type.
+	(FLASH_ADDR_KEY_STORAGE_START, FLASH_ADDR_DATA_STORAGE_START):
+	Follow the change.
+
+2022-03-26  Bertrand Jacquin <bertrand@jacquin.bzh>
+
+	* regnual/regnual.c (memset): Remove declaration.
+	* regnual/types.h (NULL): Remove.
+	(size_t): Remove.
+
 2021-11-02  NIIBE Yutaka  <gniibe@shouwa2020.gniibe.org>
 
 	* src/ecc-mont.c (ecdh_compute_public_25519): Fix alignment
