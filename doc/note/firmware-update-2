@@ -105,8 +105,8 @@ itself is needed before compiling reGNUal.
 upgrade_by_passwd.py
 --------------------
 
-In the source code distribution of 1.0.4 (or current development
-version) of Gnuk, there is a tool named 'upgrade_by_passwd.py'.
+Since the source code distribution of 1.0.4 of Gnuk, there is a tool
+named 'upgrade_by_passwd.py'.
 
 This is an easy tool to hide lengthy steps from user and to allow user
 firmware upgrade only by password of Gnuk Token.
@@ -122,15 +122,11 @@ your environment for Gnuk Token.
 How to run the script: ::
 
   $ cd tool
-  $ ./upgrade_by_passwd.py ../regnual/regnual.bin ../src/build/gnuk.bin
+  $ ./upgrade_by_passwd.py
 
 Then, the script on your host PC invoke the steps described above, and
 you will get new version of Gnuk installed.
 
 You can also specify -f option to skip entering your password (it
 assumes the factory setting).
-
-If you already have configured another upgrade key installed, you can
-specify different slot by -k ``<slot_no>`` option.  SLOT_NO can be 0
-to 3.
 -- 

@@ -57,8 +57,6 @@
  * _keystore_pool
  *         Three flash pages for keystore
  *         a page contains a key data of:
- *              For RSA-2048: 512-byte (p, q and N)
- *              For RSA-4096: 1024-byte (p, q and N)
  *              For ECDSA/ECDH and EdDSA, there are padding after public key
  * _data_pool
  *	   <two pages>
@@ -158,12 +156,6 @@ flash_terminate (void)
 {
   int i;
 
-#ifdef FLASH_UPGRADE_SUPPORT
-  const uint8_t *p;
-
-  p = gpg_get_firmware_update_key (0);
-  flash_erase_page ((uintptr_t)p);
-#endif
   for (i = 0; i < 3; i++)
     flash_erase_page ((uintptr_t)flash_key_getpage (i));
   flash_erase_page ((uintptr_t)FLASH_ADDR_DATA_STORAGE_START);
@@ -711,19 +703,6 @@ flash_write_binary (uint8_t file_id, const uint8_t *data,
       maxsize = 6;
       p = &openpgpcard_aid[8];
     }
-#ifdef FLASH_UPGRADE_SUPPORT
-  else if (file_id >= FILEID_UPDATE_KEY_0 && file_id <= FILEID_UPDATE_KEY_3)
-    {
-      maxsize = FIRMWARE_UPDATE_KEY_CONTENT_LEN;
-      p = gpg_get_firmware_update_key (file_id - FILEID_UPDATE_KEY_0);
-      if (len == 0 && offset == 0)
-	{ /* This means removal of update key.  */
-	  if (flash_program_halfword ((uintptr_t)p, 0) != 0)
-	    flash_warning ("DO WRITE ERROR");
-	  return 0;
-	}
-    }
-#endif
 #if defined(CERTDO_SUPPORT)
   else if (file_id == FILEID_CH_CERTIFICATE)
     {

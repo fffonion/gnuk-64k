@@ -4,7 +4,7 @@
 upgrade_by_passwd.py - a tool to install another firmware for Gnuk Token
                        which is just shipped from factory
 
-Copyright (C) 2012, 2013, 2015, 2018, 2021
+Copyright (C) 2012, 2013, 2015, 2018, 2021, 2022
               Free Software Initiative of Japan
 Author: NIIBE Yutaka <gniibe@fsij.org>
 
@@ -29,24 +29,18 @@ from gnuk_token import get_gnuk_device, gnuk_devices_by_vidpid, \
 from kdf_calc import kdf_calc
 
 import sys, binascii, time, os
-import rsa
 from struct import pack
 
 DEFAULT_PW3 = "12345678"
 BY_ADMIN = 3
 
-KEYNO_FOR_AUTH=2 
-
-def main(wait_e, keyno, passwd, data_regnual, data_upgrade):
+def main(wait_e, passwd, data_regnual, data_upgrade):
     l = len(data_regnual)
     if (l & 0x03) != 0:
         data_regnual = data_regnual.ljust(l + 4 - (l & 0x03), chr(0))
     crc32code = crc32(data_regnual)
     print("CRC32: %04x\n" % crc32code)
     data_regnual += pack('<I', crc32code)
-
-    rsa_key = rsa.read_key_from_file('rsa_example.key')
-    rsa_raw_pubkey = rsa.get_raw_pubkey(rsa_key)
 
     gnuk = get_gnuk_device()
     gnuk.cmd_select_openpgp()
@@ -67,14 +61,9 @@ def main(wait_e, keyno, passwd, data_regnual, data_upgrade):
         passwd_data = kdf_calc(passwd, salt, iters)
     # And authenticate with the passwd data
     gnuk.cmd_verify(BY_ADMIN, passwd_data)
-    gnuk.cmd_write_binary(1+keyno, rsa_raw_pubkey, False)
 
     gnuk.cmd_select_openpgp()
-    challenge = gnuk.cmd_get_challenge().tobytes()
-    digestinfo = binascii.unhexlify(SHA256_OID_PREFIX) + challenge
-    signed = rsa.compute_signature(rsa_key, digestinfo)
-    signed_bytes = rsa.integer_to_bytes_256(signed)
-    gnuk.cmd_external_authenticate(keyno, signed_bytes)
+    gnuk.cmd_external_authenticate()
     gnuk.stop_gnuk()
     mem_info = gnuk.mem_info()
     print("%08x:%08x" % mem_info)
@@ -125,7 +114,6 @@ if __name__ == '__main__':
         print("Please change working directory to: %s" % os.path.dirname(os.path.abspath(__file__)))
         exit(1)
 
-    keyno = 0
     passwd = None
     wait_e = DEFAULT_WAIT_FOR_REENUMERATION
     skip_check = False
@@ -137,10 +125,6 @@ if __name__ == '__main__':
         elif option == '-e':    # E for Enumeration
             sys.argv.pop(1)
             wait_e = int(sys.argv[1])
-            sys.argv.pop(1)
-        elif option == '-k':    # K for Key number
-            sys.argv.pop(1)
-            keyno = int(sys.argv[1])
             sys.argv.pop(1)
         elif option == '-s':    # S for skip the check of target
             sys.argv.pop(1)
@@ -184,4 +168,4 @@ if __name__ == '__main__':
     f.close()
     print("%s: %d" % (filename_upgrade, len(data_upgrade)))
     # First 4096-byte in data_upgrade is SYS, so, skip it.
-    main(wait_e, keyno, passwd, data_regnual, data_upgrade[4096:])
+    main(wait_e, passwd, data_regnual, data_upgrade[4096:])

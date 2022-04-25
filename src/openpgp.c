@@ -2,7 +2,7 @@
  * openpgp.c -- OpenPGP card protocol support
  *
  * Copyright (C) 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018
- *               2019, 2021
+ *               2019, 2021, 2022
  *               Free Software Initiative of Japan
  * Author: NIIBE Yutaka <gniibe@fsij.org>
  *
@@ -63,8 +63,6 @@ static struct eventflag *openpgp_comm;
 #define INS_PUT_DATA				0xda
 #define INS_PUT_DATA_ODD			0xdb	/* For key import */
 #define INS_TERMINATE_DF			0xe6
-
-static const uint8_t *challenge; /* Random bytes */
 
 static const uint8_t
 select_file_TOP_result[] __attribute__ ((aligned (1))) = {
@@ -747,18 +745,6 @@ cmd_pgp_gakp (struct eventflag *ccid_comm)
     }
 }
 
-#ifdef FLASH_UPGRADE_SUPPORT
-const uint8_t *
-gpg_get_firmware_update_key (uint8_t keyno)
-{
-  extern uint8_t _updatekey_store[1024];
-  const uint8_t *p;
-
-  p = _updatekey_store + keyno * FIRMWARE_UPDATE_KEY_CONTENT_LEN;
-  return p;
-}
-#endif
-
 #ifdef CERTDO_SUPPORT
 #define FILEID_CH_CERTIFICATE_IS_VALID 1
 #else
@@ -799,22 +785,6 @@ cmd_read_binary (struct eventflag *ccid_comm)
 	}
       return;
     }
-#ifdef FLASH_UPGRADE_SUPPORT
-  else if (file_id >= FILEID_UPDATE_KEY_0 && file_id <= FILEID_UPDATE_KEY_3)
-    {
-      if (offset != 0)
-	GPG_MEMORY_FAILURE ();
-      else
-	{
-	  const uint8_t *p;
-
-	  p = gpg_get_firmware_update_key (file_id - FILEID_UPDATE_KEY_0);
-	  res_APDU_size = FIRMWARE_UPDATE_KEY_CONTENT_LEN;
-	  memcpy (res_APDU, p, FIRMWARE_UPDATE_KEY_CONTENT_LEN);
-	  GPG_SUCCESS ();
-	}
-    }
-#endif
 #if defined(CERTDO_SUPPORT)
   else if (file_id == FILEID_CH_CERTIFICATE)
     {
@@ -939,7 +909,6 @@ cmd_pso (struct eventflag *ccid_comm)
   int len = apdu.cmd_apdu_data_len;
   int r = -1;
   int attr;
-  int pubkey_len;
   unsigned int result_len = 0;
   int cs;
 
@@ -951,9 +920,6 @@ cmd_pso (struct eventflag *ccid_comm)
   if (P1 (apdu) == 0x9e && P2 (apdu) == 0x9a)
     {
       attr = gpg_get_algo_attr (GPG_KEY_FOR_SIGNING);
-      pubkey_len = gpg_get_algo_attr_key_size (GPG_KEY_FOR_SIGNING,
-					       GPG_KEY_PUBLIC);
-
       if (!ac_check_status (AC_PSO_CDS_AUTHORIZED))
 	{
 	  DEBUG_INFO ("security error.");
@@ -966,28 +932,7 @@ cmd_pso (struct eventflag *ccid_comm)
 	eventflag_signal (ccid_comm, EV_EXEC_ACK_REQUIRED);
 #endif
 
-      if (attr == ALGO_RSA2K || attr == ALGO_RSA4K)
-	{
-	  /* Check size of digestInfo */
-	  if (len != 34		/* MD5 */
-	      && len != 35		/* SHA1 / RIPEMD-160 */
-	      && len != 47		/* SHA224 */
-	      && len != 51		/* SHA256 */
-	      && len != 67		/* SHA384 */
-	      && len != 83)		/* SHA512 */
-	    {
-	      DEBUG_INFO (" wrong length");
-	      GPG_CONDITION_NOT_SATISFIED ();
-	      return;
-	    }
-
-	  DEBUG_BINARY (kd[GPG_KEY_FOR_SIGNING].data, pubkey_len);
-
-	  result_len = pubkey_len;
-	  r = rsa_sign (apdu.cmd_apdu_data, res_APDU, len,
-			&kd[GPG_KEY_FOR_SIGNING], pubkey_len);
-	}
-      else if (attr == ALGO_SECP256K1)
+      if (attr == ALGO_SECP256K1)
 	{
 	  /* ECDSA with p256r1/p256k1 for signature */
 	  if (len != ECDSA_HASH_LEN)
@@ -1044,11 +989,6 @@ cmd_pso (struct eventflag *ccid_comm)
   else if (P1 (apdu) == 0x80 && P2 (apdu) == 0x86)
     {
       attr = gpg_get_algo_attr (GPG_KEY_FOR_DECRYPTION);
-      pubkey_len = gpg_get_algo_attr_key_size (GPG_KEY_FOR_DECRYPTION,
-					       GPG_KEY_PUBLIC);
-
-      DEBUG_BINARY (kd[GPG_KEY_FOR_DECRYPTION].data, pubkey_len);
-
       if (!ac_check_status (AC_OTHER_AUTHORIZED))
 	{
 	  DEBUG_INFO ("security error.");
@@ -1063,19 +1003,7 @@ cmd_pso (struct eventflag *ccid_comm)
       (void)ccid_comm;
 #endif
 
-      if (attr == ALGO_RSA2K || attr == ALGO_RSA4K)
-	{
-	  /* Skip padding 0x00 */
-	  len--;
-	  if (len != pubkey_len)
-	    {
-	      GPG_CONDITION_NOT_SATISFIED ();
-	      return;
-	    }
-	  r = rsa_decrypt (apdu.cmd_apdu_data+1, res_APDU, len,
-			   &kd[GPG_KEY_FOR_DECRYPTION], &result_len);
-	}
-      else if (attr == ALGO_SECP256K1)
+      if (attr == ALGO_SECP256K1)
 	{
 	  int header = ECC_CIPHER_DO_HEADER_SIZE;
 
@@ -1149,13 +1077,10 @@ cmd_pso (struct eventflag *ccid_comm)
 }
 
 
-#define MAX_RSA_DIGEST_INFO_LEN 102 /* 40% */
 static void
 cmd_internal_authenticate (struct eventflag *ccid_comm)
 {
   int attr = gpg_get_algo_attr (GPG_KEY_FOR_AUTHENTICATION);
-  int pubkey_len = gpg_get_algo_attr_key_size (GPG_KEY_FOR_AUTHENTICATION,
-					       GPG_KEY_PUBLIC);
   int len = apdu.cmd_apdu_data_len;
   int r = -1;
   unsigned int result_len = 0;
@@ -1188,20 +1113,7 @@ cmd_internal_authenticate (struct eventflag *ccid_comm)
   (void)ccid_comm;
 #endif
 
-  if (attr == ALGO_RSA2K || attr == ALGO_RSA4K)
-    {
-      if (len > MAX_RSA_DIGEST_INFO_LEN)
-	{
-	  DEBUG_INFO ("input is too long.");
-	  GPG_CONDITION_NOT_SATISFIED ();
-	  return;
-	}
-
-      result_len = pubkey_len;
-      r = rsa_sign (apdu.cmd_apdu_data, res_APDU, len,
-		    &kd[GPG_KEY_FOR_AUTHENTICATION], pubkey_len);
-    }
-  else if (attr == ALGO_SECP256K1)
+  if (attr == ALGO_SECP256K1)
     {
       if (len != ECDSA_HASH_LEN)
 	{
@@ -1324,28 +1236,6 @@ modify_binary (uint8_t op, uint8_t p1, uint8_t p2, int len)
       return;
     }
 
-#ifdef FLASH_UPGRADE_SUPPORT
-  if (file_id >= FILEID_UPDATE_KEY_0 && file_id <= FILEID_UPDATE_KEY_3
-      && len == 0 && offset == 0)
-    {
-      int i;
-      const uint8_t *p;
-
-      for (i = 0; i < 4; i++)
-	{
-	  p = gpg_get_firmware_update_key (i);
-	  if (p[0] != 0x00 || p[1] != 0x00) /* still valid */
-	    break;
-	}
-
-      if (i == 4)			/* all update keys are removed */
-	{
-	  p = gpg_get_firmware_update_key (0);
-	  flash_erase_page ((uintptr_t)p);
-	}
-    }
-#endif
-
   GPG_SUCCESS ();
 }
 
@@ -1380,36 +1270,10 @@ cmd_write_binary (struct eventflag *ccid_comm)
 static void
 cmd_external_authenticate (struct eventflag *ccid_comm)
 {
-  const uint8_t *pubkey;
-  const uint8_t *signature = apdu.cmd_apdu_data;
-  int len = apdu.cmd_apdu_data_len;
-  uint8_t keyno = P2 (apdu);
-  int r;
-
   (void)ccid_comm;
   DEBUG_INFO (" - EXTERNAL AUTHENTICATE\r\n");
 
-  if (keyno >= 4)
-    {
-      GPG_CONDITION_NOT_SATISFIED ();
-      return;
-    }
-
-  pubkey = gpg_get_firmware_update_key (keyno);
-  if (len != 256
-      || (pubkey[0] == 0xff && pubkey[1] == 0xff) /* not registered */
-      || (pubkey[0] == 0x00 && pubkey[1] == 0x00) /* removed */)
-    {
-      GPG_CONDITION_NOT_SATISFIED ();
-      return;
-    }
-
-  r = rsa_verify (pubkey, FIRMWARE_UPDATE_KEY_CONTENT_LEN,
-		  challenge, signature);
-  random_bytes_free (challenge);
-  challenge = NULL;
-
-  if (r < 0)
+  if (!ac_check_status (AC_ADMIN_AUTHORIZED))
     {
       GPG_SECURITY_FAILURE ();
       return;
@@ -1425,6 +1289,7 @@ static void
 cmd_get_challenge (struct eventflag *ccid_comm)
 {
   int len = apdu.expected_res_size;
+  const uint8_t *challenge;
 
   (void)ccid_comm;
   DEBUG_INFO (" - GET CHALLENGE\r\n");
@@ -1438,9 +1303,6 @@ cmd_get_challenge (struct eventflag *ccid_comm)
     /* Le is not specified.  Return full-sized challenge by GET_RESPONSE.  */
     len = CHALLENGE_LEN;
 
-  if (challenge)
-    random_bytes_free (challenge);
-
 #ifdef ACKBTN_SUPPORT
   if (gpg_do_get_uif (GPG_KEY_FOR_SIGNING)
       || gpg_do_get_uif (GPG_KEY_FOR_DECRYPTION)
@@ -1450,6 +1312,7 @@ cmd_get_challenge (struct eventflag *ccid_comm)
 
   challenge = random_bytes_get ();
   memcpy (res_APDU, challenge, len);
+  random_bytes_free (challenge);
   res_APDU_size = len;
   GPG_SUCCESS ();
   DEBUG_INFO ("GET CHALLENGE done.\r\n");
@@ -1488,13 +1351,13 @@ cmd_terminate_df (struct eventflag *ccid_comm)
 
   if (p1 != 0 || p2 != 0)
     {
-      GPG_BAD_P1_P2();
+      GPG_BAD_P1_P2 ();
       return;
     }
 
   if (apdu.cmd_apdu_data_len != 0)
     {
-      GPG_WRONG_LENGTH();
+      GPG_WRONG_LENGTH ();
       return;
     }
 
@@ -1505,7 +1368,7 @@ cmd_terminate_df (struct eventflag *ccid_comm)
 	   || (ks_pw3 == NULL && gpg_pw_locked (PW_ERR_PW1))))
     {
       /* Only allow the case admin authorized, or, admin pass is locked.  */
-      GPG_SECURITY_FAILURE();
+      GPG_SECURITY_FAILURE ();
       return;
     }
 

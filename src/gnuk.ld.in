@@ -141,9 +141,6 @@ SECTIONS
         . = ALIGN(@FLASH_PAGE_SIZE@);
         . += 1024;
         . = ALIGN(@FLASH_PAGE_SIZE@);
-        _updatekey_store = .;
-        . += 1024;
-        . = ALIGN(@FLASH_PAGE_SIZE@);
         _data_pool = .;
         KEEP(*(.gnuk_data))
         . = ALIGN(@FLASH_PAGE_SIZE@);

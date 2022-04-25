@@ -468,14 +468,8 @@ class gnuk_token(object):
             raise ValueError("%02x%02x" % (sw[0], sw[1]))
         return self.cmd_get_response(sw[1])
 
-    def cmd_external_authenticate(self, keyno, signed):
-        cmd_data = iso7816_compose(0x82, 0x00, keyno, signed[0:128], cls=0x10)
-        sw = self.icc_send_cmd(cmd_data)
-        if len(sw) != 2:
-            raise ValueError(sw)
-        if not (sw[0] == 0x90 and sw[1] == 0x00):
-            raise ValueError("%02x%02x" % (sw[0], sw[1]))
-        cmd_data = iso7816_compose(0x82, 0x00, keyno, signed[128:])
+    def cmd_external_authenticate(self):
+        cmd_data = iso7816_compose(0x82, 0x00, 0x00, b"", cls=0x10)
         sw = self.icc_send_cmd(cmd_data)
         if len(sw) != 2:
             raise ValueError(sw)

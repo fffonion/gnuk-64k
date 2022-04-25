@@ -112,8 +112,6 @@ void gpg_do_put_data (uint16_t tag, const uint8_t *data, int len);
 void gpg_do_public_key (uint8_t kk_byte);
 void gpg_do_keygen (uint8_t *buf);
 
-const uint8_t *gpg_get_firmware_update_key (uint8_t keyno);
-
 /* Constants: algo+size */
 #define ALGO_RSA4K      0
 /* #define ALGO_NISTP256R1 1 */
@@ -157,10 +155,6 @@ void flash_increment_counter (uint8_t counter_tag_nr);
 void flash_reset_counter (uint8_t counter_tag_nr);
 
 #define FILEID_SERIAL_NO	0
-#define FILEID_UPDATE_KEY_0	1
-#define FILEID_UPDATE_KEY_1	2
-#define FILEID_UPDATE_KEY_2	3
-#define FILEID_UPDATE_KEY_3	4
 #define FILEID_CH_CERTIFICATE	5
 int flash_erase_binary (uint8_t file_id);
 int flash_write_binary (uint8_t file_id, const uint8_t *data,
@@ -170,8 +164,6 @@ int flash_write_binary (uint8_t file_id, const uint8_t *data,
 
 /* Linker set these two symbols */
 extern uint8_t ch_certificate_start;
-
-#define FIRMWARE_UPDATE_KEY_CONTENT_LEN 256	/* RSA-2048 (p and q) */
 
 #define INITIAL_VECTOR_SIZE 16
 #define DATA_ENCRYPTION_KEY_SIZE 16
@@ -263,13 +255,6 @@ void put_binary (const char *s, int len);
 #define DEBUG_BYTE(b)
 #define DEBUG_BINARY(s,len)
 #endif
-
-int rsa_sign (const uint8_t *, uint8_t *, int, struct key_data *, int);
-int modulus_calc (const uint8_t *, int, uint8_t *);
-int rsa_decrypt (const uint8_t *, uint8_t *, int, struct key_data *,
-		 unsigned int *);
-int rsa_verify (const uint8_t *, int, const uint8_t *, const uint8_t *);
-int rsa_genkey (int, uint8_t *, uint8_t *);
 
 int ecdsa_sign_p256k1 (const uint8_t *hash, uint8_t *output,
 		       const uint8_t *key_data);
