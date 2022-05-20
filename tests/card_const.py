@@ -21,7 +21,7 @@ KEY_ATTRIBUTES_ECDH_SECP256K1=b"\x12\x2b\x81\x04\x00\x0a"
 KEY_ATTRIBUTES_ECDSA_SECP256K1=b"\x13\x2b\x81\x04\x00\x0a"
 
 def default_key(card, is_for_encr):
-    if False and card.is_gnuk:
+    if card.is_gnuk:
         if is_for_encr:
             return KEY_ATTRIBUTES_CV25519
         else:
