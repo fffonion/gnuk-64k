@@ -165,8 +165,9 @@ int flash_write_binary (uint8_t file_id, const uint8_t *data,
 /* Linker set these two symbols */
 extern uint8_t ch_certificate_start;
 
-#define INITIAL_VECTOR_SIZE 16
-#define DATA_ENCRYPTION_KEY_SIZE 16
+#define INITIAL_VECTOR_SIZE      12
+#define ENCRYPTION_BLOCK_SIZE    16
+#define DATA_ENCRYPTION_KEY_SIZE 32
 
 #define MAX_PRVKEY_LEN 512	/* Maximum is the case for RSA 4096-bit.  */
 
@@ -183,7 +184,7 @@ struct prvkey_data {
   /*
    * Checksum
    */
-  uint8_t checksum_encrypted[DATA_ENCRYPTION_KEY_SIZE];
+  uint8_t checksum_encrypted[ENCRYPTION_BLOCK_SIZE];
   /*
    * DEK (Data Encryption Key) encrypted
    */
