@@ -1139,6 +1139,41 @@ proc_resetting_code (const uint8_t *data, int len)
   return 1;
 }
 
+
+#define CHECKSUM_ADDR(kdi,prvkey_len) \
+	(&(kdi).data[prvkey_len / sizeof (uint32_t)])
+#define kdi_len(prvkey_len) (prvkey_len+ENCRYPTION_BLOCK_SIZE)
+struct key_data_internal {
+  uint32_t data[(MAX_PRVKEY_LEN+ENCRYPTION_BLOCK_SIZE) / sizeof (uint32_t)];
+  /*
+   * Secret key data.
+   * ECDSA/ECDH: d, EdDSA: a+seed
+   */
+  /* Checksum */
+};
+
+#define CKDC_CALC  0
+#define CKDC_CHECK 1
+static int
+compute_key_data_checksum (struct key_data_internal *kdi, int prvkey_len,
+			   int check_or_calc)
+{
+  unsigned int i;
+  uint32_t d[4] = { 0, 0, 0, 0 };
+  uint32_t *checksum = CHECKSUM_ADDR (*kdi, prvkey_len);
+
+  for (i = 0; i < prvkey_len / sizeof (uint32_t); i++)
+    d[i&3] ^= kdi->data[i];
+
+  if (check_or_calc == CKDC_CALC)	/* store */
+    {
+      memcpy (checksum, d, ENCRYPTION_BLOCK_SIZE);
+      return 0;
+    }
+  else				/* check */
+    return memcmp (checksum, d, ENCRYPTION_BLOCK_SIZE) == 0;
+}
+
 /*
  * We use CTR mode for encryption and decryption.  The operation is
  * exactly same, thus, we call it "crypt".
@@ -1171,21 +1206,34 @@ crypt (const uint8_t *key, const uint8_t *iv, uint8_t *data, int len,
 }
 
 static void
-encrypt (const uint8_t *key, const uint8_t *iv, uint8_t *data, int len)
+encrypt (const uint8_t *key, const uint8_t *iv,
+	 struct key_data_internal *kdi, int prvkey_len)
 {
+  uint8_t *data;
+  int len = kdi_len (prvkey_len);
+
   DEBUG_INFO ("ENC\r\n");
   DEBUG_BINARY (data, len);
 
+  compute_key_data_checksum (kdi, prvkey_len, CKDC_CALC);
+  data = (uint8_t *)kdi;
   crypt (key, iv, data, len, 0);
 }
 
-static void
-decrypt (const uint8_t *key, const uint8_t *iv, uint8_t *data, int len)
+static int
+decrypt (const uint8_t *key, const uint8_t *iv,
+	 struct key_data_internal *kdi, int prvkey_len)
 {
+  uint8_t *data = (uint8_t *)kdi;
+  int len = kdi_len (prvkey_len);
+  int r;
+
   crypt (key, iv, data, len, 0);
+  r = compute_key_data_checksum (kdi, prvkey_len, CKDC_CHECK);
 
   DEBUG_INFO ("DEC\r\n");
   DEBUG_BINARY (data, len);
+  return r;
 }
 
 static void
@@ -1225,40 +1273,6 @@ gpg_do_clear_prvkey (enum kind_of_key kk)
 }
 
 
-#define CHECKSUM_ADDR(kdi,prvkey_len) \
-	(&(kdi).data[prvkey_len / sizeof (uint32_t)])
-#define kdi_len(prvkey_len) (prvkey_len+ENCRYPTION_BLOCK_SIZE)
-struct key_data_internal {
-  uint32_t data[(MAX_PRVKEY_LEN+ENCRYPTION_BLOCK_SIZE) / sizeof (uint32_t)];
-  /*
-   * Secret key data.
-   * ECDSA/ECDH: d, EdDSA: a+seed
-   */
-  /* Checksum */
-};
-
-#define CKDC_CALC  0
-#define CKDC_CHECK 1
-static int
-compute_key_data_checksum (struct key_data_internal *kdi, int prvkey_len,
-			   int check_or_calc)
-{
-  unsigned int i;
-  uint32_t d[4] = { 0, 0, 0, 0 };
-  uint32_t *checksum = CHECKSUM_ADDR (*kdi, prvkey_len);
-
-  for (i = 0; i < prvkey_len / sizeof (uint32_t); i++)
-    d[i&3] ^= kdi->data[i];
-
-  if (check_or_calc == CKDC_CALC)	/* store */
-    {
-      memcpy (checksum, d, ENCRYPTION_BLOCK_SIZE);
-      return 0;
-    }
-  else				/* check */
-    return memcmp (checksum, d, ENCRYPTION_BLOCK_SIZE) == 0;
-}
-
 /*
  * Return  1 on success,
  *         0 if none,
@@ -1274,6 +1288,7 @@ gpg_do_load_prvkey (enum kind_of_key kk, int who, const uint8_t *keystring)
   uint8_t dek[DATA_ENCRYPTION_KEY_SIZE];
   const uint8_t *iv;
   struct key_data_internal kdi;
+  int r;
 
   DEBUG_INFO ("Loading private key: ");
   DEBUG_BYTE (kk);
@@ -1292,9 +1307,9 @@ gpg_do_load_prvkey (enum kind_of_key kk, int who, const uint8_t *keystring)
 	  DATA_ENCRYPTION_KEY_SIZE);
   decrypt_dek (keystring, iv, dek);
 
-  decrypt (dek, iv, (uint8_t *)&kdi, kdi_len (prvkey_len));
+  r = decrypt (dek, iv, &kdi, prvkey_len);
   memset (dek, 0, DATA_ENCRYPTION_KEY_SIZE);
-  if (!compute_key_data_checksum (&kdi, prvkey_len, CKDC_CHECK))
+  if (!r)
     {
       DEBUG_INFO ("gpg_do_load_prvkey failed.\r\n");
       return -1;
@@ -1457,8 +1472,6 @@ gpg_do_write_prvkey (enum kind_of_key kk, const uint8_t *key_data,
   memcpy (kdi.data, key_data, prvkey_len);
   memset ((uint8_t *)kdi.data + prvkey_len, 0, MAX_PRVKEY_LEN - prvkey_len);
 
-  compute_key_data_checksum (&kdi, prvkey_len, CKDC_CALC);
-
   iv = random_bytes_get (); /* 32-byte random bytes */
   memcpy (pd->iv, iv, INITIAL_VECTOR_SIZE);
   random_bytes_free (iv);
@@ -1482,7 +1495,7 @@ gpg_do_write_prvkey (enum kind_of_key kk, const uint8_t *key_data,
 	gpg_do_chks_prvkey (kk0, BY_RESETCODE, NULL, 0, NULL);
       }
 
-  encrypt (dek, pd->iv, (uint8_t *)&kdi, kdi_len (prvkey_len));
+  encrypt (dek, pd->iv, &kdi, prvkey_len);
   random_bytes_free (dek);
 
   r = flash_key_write (key_addr, (const uint8_t *)kdi.data, prvkey_len,
