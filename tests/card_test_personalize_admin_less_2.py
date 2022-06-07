@@ -23,7 +23,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from struct import pack
 from re import match, DOTALL
 from util import *
-from pubkey_crypto import PK_Crypto, key
 from card_const import *
 from constants_for_test import *
 

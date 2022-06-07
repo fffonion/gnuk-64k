@@ -23,12 +23,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from struct import pack
 from re import match, DOTALL
 from util import *
-from pubkey_crypto import PK_Crypto, key, test_vector
+from pubkey_crypto import get_PK_Crypto, get_test_vector
 from card_const import *
 from constants_for_test import *
 
 class Test_Card_PK_OPs_KG(object):
     def test_signature_sigkey(self, card):
+        test_vector = get_test_vector(card)
+        PK_Crypto = get_PK_Crypto(card)
         pk_info = card.cmd_get_public_key(1)
         k = PK_Crypto(0, pk_info=pk_info)
         digestinfo = PK_Crypto.compute_digestinfo(test_vector['sign_0'])
@@ -37,6 +39,8 @@ class Test_Card_PK_OPs_KG(object):
         assert r
 
     def test_decryption(self, card):
+        test_vector = get_test_vector(card)
+        PK_Crypto = get_PK_Crypto(card)
         pk_info = card.cmd_get_public_key(2)
         k = PK_Crypto(1, pk_info=pk_info)
         encrypted_data = k.encrypt(test_vector['encrypt_0'])
@@ -44,6 +48,8 @@ class Test_Card_PK_OPs_KG(object):
         assert PK_Crypto.enc_check(encrypted_data, r)
 
     def test_signature_authkey(self, card):
+        test_vector = get_test_vector(card)
+        PK_Crypto = get_PK_Crypto(card)
         pk_info = card.cmd_get_public_key(3)
         k = PK_Crypto(2, pk_info=pk_info)
         digestinfo = PK_Crypto.compute_digestinfo(test_vector['sign_0'])

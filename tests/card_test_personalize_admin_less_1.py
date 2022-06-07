@@ -23,7 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from struct import pack
 from re import match, DOTALL
 from util import *
-from pubkey_crypto import PK_Crypto, key
+from pubkey_crypto import get_PK_Crypto, get_key
 from card_const import *
 from constants_for_test import *
 
@@ -33,46 +33,55 @@ class Test_Card_Personalize_Adminless_FIRST(object):
         assert v
 
     def test_import_key_1(self, card):
+        key = get_key(card)
         t = key[0].build_privkey_template(card.is_yubikey)
         r = card.cmd_put_data_odd(0x3f, 0xff, t)
         assert r
 
     def test_import_key_2(self, card):
+        key = get_key(card)
         t = key[1].build_privkey_template(card.is_yubikey)
         r = card.cmd_put_data_odd(0x3f, 0xff, t)
         assert r
 
     def test_import_key_3(self, card):
+        key = get_key(card)
         t = key[2].build_privkey_template(card.is_yubikey)
         r = card.cmd_put_data_odd(0x3f, 0xff, t)
         assert r
 
     def test_fingerprint_1_put(self, card):
+        key = get_key(card)
         fpr1 = key[0].get_fpr()
         r = card.cmd_put_data(0x00, 0xc7, fpr1)
         assert r
 
     def test_fingerprint_2_put(self, card):
+        key = get_key(card)
         fpr2 = key[1].get_fpr()
         r = card.cmd_put_data(0x00, 0xc8, fpr2)
         assert r
 
     def test_fingerprint_3_put(self, card):
+        key = get_key(card)
         fpr3 = key[2].get_fpr()
         r = card.cmd_put_data(0x00, 0xc9, fpr3)
         assert r
 
     def test_timestamp_1_put(self, card):
+        key = get_key(card)
         timestamp1 = key[0].get_timestamp()
         r = card.cmd_put_data(0x00, 0xce, timestamp1)
         assert r
 
     def test_timestamp_2_put(self, card):
+        key = get_key(card)
         timestamp2 = key[1].get_timestamp()
         r = card.cmd_put_data(0x00, 0xcf, timestamp2)
         assert r
 
     def test_timestamp_3_put(self, card):
+        key = get_key(card)
         timestamp3 = key[2].get_timestamp()
         r = card.cmd_put_data(0x00, 0xd0, timestamp3)
         assert r
@@ -93,14 +102,20 @@ class Test_Card_Personalize_Adminless_FIRST(object):
                app_data[18:18+2] == b"\x5f\x52"
 
     def test_public_key_1(self, card):
+        key = get_key(card)
+        PK_Crypto = get_PK_Crypto(card)
         pk_info = card.cmd_get_public_key(1)
         assert key[0].get_pk() == PK_Crypto.pk_from_pk_info(pk_info)
 
     def test_public_key_2(self, card):
+        key = get_key(card)
+        PK_Crypto = get_PK_Crypto(card)
         pk_info = card.cmd_get_public_key(2)
         assert key[1].get_pk() == PK_Crypto.pk_from_pk_info(pk_info)
 
     def test_public_key_3(self, card):
+        key = get_key(card)
+        PK_Crypto = get_PK_Crypto(card)
         pk_info = card.cmd_get_public_key(3)
         assert key[2].get_pk() == PK_Crypto.pk_from_pk_info(pk_info)
 

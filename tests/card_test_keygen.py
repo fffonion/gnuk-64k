@@ -21,13 +21,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 from binascii import hexlify
-from pubkey_crypto import PK_Crypto
+from pubkey_crypto import get_PK_Crypto
 from card_const import *
 from constants_for_test import *
 import pytest
 
 class Test_Card_Keygen(object):
     def test_keygen_1(self, card):
+        PK_Crypto = get_PK_Crypto(card)
         pk_info = card.cmd_genkey(1)
         k = PK_Crypto(0, pk_info=pk_info)
         r = card.cmd_put_data(0x00, 0xc7, k.get_fpr())
@@ -36,6 +37,7 @@ class Test_Card_Keygen(object):
         assert r
 
     def test_keygen_2(self, card):
+        PK_Crypto = get_PK_Crypto(card)
         pk_info = card.cmd_genkey(2)
         k = PK_Crypto(1, pk_info=pk_info)
         r = card.cmd_put_data(0x00, 0xc8, k.get_fpr())
@@ -44,6 +46,7 @@ class Test_Card_Keygen(object):
         assert r
 
     def test_keygen_3(self, card):
+        PK_Crypto = get_PK_Crypto(card)
         pk_info = card.cmd_genkey(3)
         k = PK_Crypto(2, pk_info=pk_info)
         r = card.cmd_put_data(0x00, 0xc9, k.get_fpr())
