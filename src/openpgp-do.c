@@ -1154,22 +1154,31 @@ struct key_data_internal {
 #define CKDC_CALC  0
 #define CKDC_CHECK 1
 static int
-compute_key_data_checksum (uint8_t *data, int prvkey_len,
+compute_key_data_checksum (const uint8_t auth_key[DATA_ENCRYPTION_KEY_SIZE],
+			   const uint8_t *data, int prvkey_len,
 			   uint32_t *checksum, int check_or_calc)
 {
   unsigned int i;
   uint32_t d[4] = { 0, 0, 0, 0 };
+  aes_context aes;
 
   for (i = 0; i < prvkey_len / sizeof (uint32_t); i++)
     d[i&3] ^= data[i];
 
+  aes_set_key (&aes, auth_key);
+
   if (check_or_calc == CKDC_CALC)	/* store */
     {
-      memcpy (checksum, d, ENCRYPTION_BLOCK_SIZE);
+      aes_encrypt (&aes, d, checksum);
+      aes_clear_key (&aes);
       return 0;
     }
   else				/* check */
-    return memcmp (checksum, d, ENCRYPTION_BLOCK_SIZE) == 0;
+    {
+      aes_encrypt (&aes, d, d);
+      aes_clear_key (&aes);
+      return memcmp (checksum, d, ENCRYPTION_BLOCK_SIZE) == 0;
+    }
 }
 
 /*
@@ -1184,8 +1193,20 @@ compute_key_data_checksum (uint8_t *data, int prvkey_len,
  */
 
 static void
-crypt (const uint8_t *key, const uint8_t *iv, uint8_t *data, int len,
-       int for_dek)
+crypt0 (const uint8_t *key, uint8_t iv0[ENCRYPTION_BLOCK_SIZE],
+	uint8_t *data, int len)
+{
+  aes_context aes;
+  uint8_t stream_block[16];
+  unsigned int iv_offset = 0;
+
+  aes_set_key (&aes, key);
+  aes_crypt_ctr (&aes, len, &iv_offset, iv0, stream_block, data, data);
+  aes_clear_key (&aes);
+}
+
+static void
+crypt1 (const uint8_t *key, const uint8_t *iv, uint8_t *data, int len)
 {
   aes_context aes;
   uint8_t iv0[ENCRYPTION_BLOCK_SIZE];
@@ -1196,11 +1217,48 @@ crypt (const uint8_t *key, const uint8_t *iv, uint8_t *data, int len,
   memset (iv0, 0, ENCRYPTION_BLOCK_SIZE - INITIAL_VECTOR_SIZE);
   memcpy (iv0 + ENCRYPTION_BLOCK_SIZE - INITIAL_VECTOR_SIZE,
 	  iv, INITIAL_VECTOR_SIZE);
-  if (for_dek)
-    memcpy (iv0, "\xd1\xff\xd1\xff", 4);
-  else
-    iv0[0] = 1;
+  memcpy (iv0, "\xd1\xff\xd1\xff", 4);
   aes_crypt_ctr (&aes, len, &iv_offset, iv0, stream_block, data, data);
+  aes_clear_key (&aes);
+}
+
+static void
+derive_keys (const uint8_t *key_generating_key, const uint8_t *iv,
+	     uint8_t auth_key[DATA_ENCRYPTION_KEY_SIZE],
+	     uint8_t encr_key[DATA_ENCRYPTION_KEY_SIZE])
+{
+  aes_context aes;
+  uint8_t blk0[ENCRYPTION_BLOCK_SIZE];
+  uint8_t blk1[ENCRYPTION_BLOCK_SIZE];
+
+  aes_set_key (&aes, key_generating_key);
+  memset (blk0, 0, 4);
+  memcpy (blk0+4, iv, 12);
+  aes_encrypt (&aes, blk0, blk1);
+  memcpy (&auth_key[0], blk1, 8);
+  blk0[0] = 1;
+  aes_encrypt (&aes, blk0, blk1);
+  memcpy (&auth_key[8], blk1, 8);
+  blk0[0] = 2;
+  aes_encrypt (&aes, blk0, blk1);
+  memcpy (&encr_key[0], blk1, 8);
+  blk0[0] = 3;
+  aes_encrypt (&aes, blk0, blk1);
+  memcpy (&encr_key[8], blk1, 8);
+  blk0[0] = 4;
+  aes_encrypt (&aes, blk0, blk1);
+  memcpy (&encr_key[16], blk1, 8);
+  blk0[0] = 5;
+  aes_encrypt (&aes, blk0, blk1);
+  memcpy (&encr_key[24], blk1, 8);
+
+  /*Not 8452 compliant, but we don't have AES128 */
+  blk0[0] = 6;
+  aes_encrypt (&aes, blk0, blk1);
+  memcpy (&auth_key[16], blk1, 8);
+  blk0[0] = 7;
+  aes_encrypt (&aes, blk0, blk1);
+  memcpy (&auth_key[24], blk1, 8);
   aes_clear_key (&aes);
 }
 
@@ -1208,43 +1266,48 @@ static void
 encrypt (const uint8_t *key, const uint8_t *iv,
 	 struct key_data_internal *kdi, int prvkey_len)
 {
-  int len = kdi_len (prvkey_len);
   uint32_t *checksum = CHECKSUM_ADDR (*kdi, prvkey_len);
+  uint8_t auth_key[DATA_ENCRYPTION_KEY_SIZE];
+  uint8_t encr_key[DATA_ENCRYPTION_KEY_SIZE];
+  uint8_t iv0[ENCRYPTION_BLOCK_SIZE];
 
-  DEBUG_INFO ("ENC\r\n");
-  DEBUG_BINARY (data, len);
-
-  compute_key_data_checksum ((uint8_t *)kdi->data, prvkey_len, checksum, CKDC_CALC);
-  crypt (key, iv, (uint8_t *)kdi->data, len, 0);
+  derive_keys (key, iv, auth_key, encr_key);
+  compute_key_data_checksum (auth_key, (uint8_t *)kdi->data,
+			     prvkey_len, checksum, CKDC_CALC);
+  memcpy (iv0, checksum, ENCRYPTION_BLOCK_SIZE);
+  iv0[15] |= 0x80;
+  crypt0 (encr_key, iv0, (uint8_t *)kdi->data, prvkey_len);
 }
 
 static int
 decrypt (const uint8_t *key, const uint8_t *iv,
 	 struct key_data_internal *kdi, int prvkey_len)
 {
-  uint8_t *data = (uint8_t *)kdi;
-  int len = kdi_len (prvkey_len);
   int r;
   uint32_t *checksum = CHECKSUM_ADDR (*kdi, prvkey_len);
+  uint8_t auth_key[DATA_ENCRYPTION_KEY_SIZE];
+  uint8_t encr_key[DATA_ENCRYPTION_KEY_SIZE];
+  uint8_t iv0[ENCRYPTION_BLOCK_SIZE];
 
-  crypt (key, iv, data, len, 0);
-  r = compute_key_data_checksum ((uint8_t *)kdi->data, prvkey_len, checksum, CKDC_CHECK);
-
-  DEBUG_INFO ("DEC\r\n");
-  DEBUG_BINARY (data, len);
+  derive_keys (key, iv, auth_key, encr_key);
+  memcpy (iv0, checksum, ENCRYPTION_BLOCK_SIZE);
+  iv0[15] |= 0x80;
+  crypt0 (encr_key, iv0, (uint8_t *)kdi->data, prvkey_len);
+  r = compute_key_data_checksum (auth_key, (uint8_t *)kdi->data,
+				 prvkey_len, checksum, CKDC_CHECK);
   return r;
 }
 
 static void
 encrypt_dek (const uint8_t *key_string, const uint8_t *iv, uint8_t *dek)
 {
-  crypt (key_string, iv, dek, 16, 1);
+  crypt1 (key_string, iv, dek, 16);
 }
 
 static void
 decrypt_dek (const uint8_t *key_string, const uint8_t *iv, uint8_t *dek)
 {
-  crypt (key_string, iv, dek, 16, 1);
+  crypt1 (key_string, iv, dek, 16);
 }
 
 /* For three keys: Signing, Decryption, and Authentication */
