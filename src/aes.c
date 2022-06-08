@@ -1,7 +1,7 @@
 /*
  * aes.c - AES256 for Gnuk
  *
- * Copyright (C) 2020  Free Software Initiative of Japan
+ * Copyright (C) 2020, 2022  Free Software Initiative of Japan
  * Author: NIIBE Yutaka <gniibe@fsij.org>
  *
  * This file is a part of Gnuk, a GnuPG USB Token implementation.
@@ -17,7 +17,7 @@
  * License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
  *
  * This is an implementation using four T tables (little endian),
