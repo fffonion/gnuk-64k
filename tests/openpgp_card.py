@@ -266,8 +266,7 @@ class OpenPGP_Card(object):
         return True
 
     def cmd_get_data(self, tagh, tagl):
-        if tagh == 0 and tagl == 0xfa and \
-           (self.is_yubikey or self.__reader.is_tpdu_reader()):
+        if tagh == 0 and tagl == 0xfa and (not self.is_gnuk):
             # Special DO with larger data
             cmd_data = iso7816_compose(0xca, tagh, tagl, b"", le=1024)
         elif self.is_yubikey:
@@ -305,7 +304,7 @@ class OpenPGP_Card(object):
         return True
 
     def cmd_put_data_odd(self, tagh, tagl, content):
-        if self.is_yubikey or self.__reader.is_tpdu_reader() or len(content) <= 128:
+        if (not self.is_gnuk) or len(content) <= 128:
             cmd_data = iso7816_compose(0xdb, tagh, tagl, content)
             sw = self.__reader.send_cmd(cmd_data)
         else:
@@ -333,7 +332,7 @@ class OpenPGP_Card(object):
         return True
 
     def cmd_pso(self, p1, p2, data):
-        if self.is_yubikey or self.__reader.is_tpdu_reader():
+        if not self.is_gnuk:
             cmd_data = iso7816_compose(0x2a, p1, p2, data, le=256)
             r = self.__reader.send_cmd(cmd_data)
             if len(r) < 2:
@@ -373,7 +372,7 @@ class OpenPGP_Card(object):
                 return self.cmd_get_response(sw[1])
 
     def cmd_internal_authenticate(self, data):
-        if self.is_yubikey or self.__reader.is_tpdu_reader():
+        if not self.is_gnuk:
             cmd_data = iso7816_compose(0x88, 0, 0, data, le=256)
         else:
             cmd_data = iso7816_compose(0x88, 0, 0, data)
@@ -396,7 +395,7 @@ class OpenPGP_Card(object):
             data = b'\xb8\x00'
         else:
             data = b'\xa4\x00'
-        if self.is_yubikey or self.__reader.is_tpdu_reader():
+        if not self.is_gnuk:
             cmd_data = iso7816_compose(0x47, 0x80, 0, data, le=512)
         else:
             cmd_data = iso7816_compose(0x47, 0x80, 0, data)
@@ -418,7 +417,7 @@ class OpenPGP_Card(object):
             data = b'\xb8\x00'
         else:
             data = b'\xa4\x00'
-        if self.is_yubikey or self.__reader.is_tpdu_reader():
+        if not self.is_gnuk:
             cmd_data = iso7816_compose(0x47, 0x81, 0, data, le=512)
         else:
             cmd_data = iso7816_compose(0x47, 0x81, 0, data)
