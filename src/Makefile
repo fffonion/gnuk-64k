@@ -8,6 +8,7 @@ CHOPSTX = ../chopstx
 CSRC = main.c \
 	usb_desc.c usb_ctrl.c \
 	usb-ccid.c openpgp.c ac.c openpgp-do.c flash.c \
+        aes.c \
 	bn.c mod.c \
 	modp256k1.c jpc_p256k1.c ec_p256k1.c call-ec_p256k1.c \
 	mod25638.c ecc-ed25519.c ecc-mont.c sha512.c \
@@ -16,14 +17,6 @@ CSRC = main.c \
 	random.c neug.c sha256.c
 
 INCDIR =
-
-CRYPTDIR = ../polarssl
-CRYPTSRCDIR = $(CRYPTDIR)/library
-CRYPTINCDIR = $(CRYPTDIR)/include
-CRYPTSRC = $(CRYPTSRCDIR)/aes.c
-
-CSRC += $(CRYPTSRC)
-INCDIR += $(CRYPTINCDIR)
 
 include config.mk
 
