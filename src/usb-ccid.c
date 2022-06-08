@@ -2,7 +2,7 @@
  * usb-ccid.c -- USB CCID protocol handling
  *
  * Copyright (C) 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
- *               2019
+ *               2019, 2022
  *               Free Software Initiative of Japan
  * Author: NIIBE Yutaka <gniibe@fsij.org>
  *
@@ -19,7 +19,7 @@
  * License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
  */
 
@@ -767,10 +767,6 @@ usb_tx_done (uint8_t ep_num, uint16_t len)
       chopstx_cond_signal (&stdout.cond_dev);
       chopstx_mutex_unlock (&stdout.m_dev);
     }
-#endif
-#ifdef PINPAD_DND_SUPPORT
-  else if (ep_num == ENDP6)
-    EP6_IN_Callback (len);
 #endif
 }
 

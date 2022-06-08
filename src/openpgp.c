@@ -19,7 +19,7 @@
  * License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
  */
 
@@ -125,23 +125,6 @@ gpg_fini (void)
   ac_fini ();
 }
 
-#if defined(PINPAD_SUPPORT)
-/*
- * Let user input PIN string.
- * Return length of the string.
- * The string itself is in PIN_INPUT_BUFFER.
- */
-static int
-get_pinpad_input (int msg_code)
-{
-  int r;
-
-  led_blink (LED_START_COMMAND);
-  r = pinpad_getline (msg_code, 8000000);
-  led_blink (LED_FINISH_COMMAND);
-  return r;
-}
-#endif
 
 static void
 cmd_verify (struct eventflag *ccid_comm)
@@ -1467,92 +1450,19 @@ openpgp_card_thread (void *arg)
 
   while (1)
     {
-#if defined(PINPAD_SUPPORT)
-      int len, pw_len, newpw_len;
-#endif
       eventmask_t m = eventflag_wait (openpgp_comm);
 
       DEBUG_INFO ("GPG!: ");
 
       if (m == EV_VERIFY_CMD_AVAILABLE)
 	{
-#if defined(PINPAD_SUPPORT)
-	  if (INS (apdu) != INS_VERIFY)
-	    {
-	      GPG_CONDITION_NOT_SATISFIED ();
-	      goto done;
-	    }
-
-	  pw_len = get_pinpad_input (PIN_INPUT_CURRENT);
-	  if (pw_len < 0)
-	    {
-	      GPG_ERROR ();
-	      goto done;
-	    }
-	  memcpy (apdu.cmd_apdu_data, pin_input_buffer, pw_len);
-	  apdu.cmd_apdu_data_len = pw_len;
-#else
 	  GPG_ERROR ();
 	  goto done;
-#endif
 	}
       else if (m == EV_MODIFY_CMD_AVAILABLE)
 	{
-#if defined(PINPAD_SUPPORT)
-	  uint8_t bConfirmPIN = apdu.cmd_apdu_data[0];
-	  uint8_t *p = apdu.cmd_apdu_data;
-
-	  if (INS (apdu) != INS_CHANGE_REFERENCE_DATA
-	      && INS (apdu) != INS_RESET_RETRY_COUNTER
-	      && INS (apdu) != INS_PUT_DATA)
-	    {
-	      GPG_CONDITION_NOT_SATISFIED ();
-	      goto done;
-	    }
-
-	  if ((bConfirmPIN & 2))	/* Require old PIN */
-	    {
-	      pw_len = get_pinpad_input (PIN_INPUT_CURRENT);
-	      if (pw_len < 0)
-		{
-		  GPG_ERROR ();
-		  goto done;
-		}
-	      memcpy (p, pin_input_buffer, pw_len);
-	      p += pw_len;
-	    }
-	  else
-	    pw_len = 0;
-
-	  newpw_len = get_pinpad_input (PIN_INPUT_NEW);
-	  if (newpw_len < 0)
-	    {
-	      GPG_ERROR ();
-	      goto done;
-	    }
-	  memcpy (p, pin_input_buffer, newpw_len);
-
-	  if ((bConfirmPIN & 1))	/* New PIN twice */
-	    {
-	      len = get_pinpad_input (PIN_INPUT_CONFIRM);
-	      if (len < 0)
-		{
-		  GPG_ERROR ();
-		  goto done;
-		}
-
-	      if (len != newpw_len || memcmp (p, pin_input_buffer, len) != 0)
-		{
-		  GPG_SECURITY_FAILURE ();
-		  goto done;
-		}
-	    }
-
-	  apdu.cmd_apdu_data_len = pw_len + newpw_len;
-#else
 	  GPG_ERROR ();
 	  goto done;
-#endif
 	}
       else if (m == EV_EXIT)
 	break;

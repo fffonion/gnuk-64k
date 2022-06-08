@@ -19,7 +19,7 @@
  * License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
  */
 
@@ -430,13 +430,6 @@ main (int argc, const char *argv[])
 
   ccid_thd = chopstx_create (PRIO_CCID, STACK_ADDR_CCID, STACK_SIZE_CCID,
 			     ccid_thread, NULL);
-
-#ifdef PINPAD_CIR_SUPPORT
-  cir_init ();
-#endif
-#ifdef PINPAD_DND_SUPPORT
-  msc_init ();
-#endif
 
   chopstx_setpriority (PRIO_MAIN);
 

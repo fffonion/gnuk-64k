@@ -19,7 +19,7 @@
  * License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
  */
 
@@ -84,10 +84,6 @@ vcom_port_data_setup (struct usb_dev *dev)
 }
 #endif
 
-#ifdef PINPAD_DND_SUPPORT
-#include "usb-msc.h"
-#endif
-
 uint32_t bDeviceState = USB_DEVICE_STATE_UNCONNECTED;
 
 #define USB_HID_REQ_GET_REPORT   1
@@ -100,12 +96,6 @@ uint32_t bDeviceState = USB_DEVICE_STATE_UNCONNECTED;
 #ifndef HID_LED_STATUS_CARDCHANGE
 /* NumLock=1, CapsLock=2, ScrollLock=4 */
 #define HID_LED_STATUS_CARDCHANGE 0x04
-#endif
-
-#ifdef HID_CARD_CHANGE_SUPPORT
-static uint8_t hid_idle_rate;	/* in 4ms */
-static uint8_t hid_report_saved;
-static uint16_t hid_report;
 #endif
 
 static void
@@ -136,19 +126,6 @@ gnuk_setup_endpoints_for_interface (struct usb_dev *dev,
 	  usb_lld_stall_tx (ENDP2);
 	}
     }
-#ifdef HID_CARD_CHANGE_SUPPORT
-  else if (interface == HID_INTERFACE)
-    {
-      if (!stop)
-#ifdef GNU_LINUX_EMULATION
-	usb_lld_setup_endp (dev, ENDP7, 0, 1);
-#else
-	usb_lld_setup_endpoint (ENDP7, EP_INTERRUPT, 0, 0, ENDP7_TXADDR, 0);
-#endif
-      else
-	usb_lld_stall_tx (ENDP7);
-    }
-#endif
 #ifdef ENABLE_VIRTUAL_COM_PORT
   else if (interface == VCOM_INTERFACE_0)
     {
@@ -181,23 +158,6 @@ gnuk_setup_endpoints_for_interface (struct usb_dev *dev,
 	}
     }
 #endif
-#ifdef PINPAD_DND_SUPPORT
-  else if (interface == MSC_INTERFACE)
-    {
-      if (!stop)
-#ifdef GNU_LINUX_EMULATION
-	usb_lld_setup_endp (dev, ENDP6, 1, 1);
-#else
-	usb_lld_setup_endpoint (ENDP6, EP_BULK, 0,
-				ENDP6_RXADDR, ENDP6_TXADDR, 64);
-#endif
-      else
-	{
-	  usb_lld_stall_tx (ENDP6);
-	  usb_lld_stall_rx (ENDP6);
-	}
-    }
-#endif
 }
 
 void
@@ -222,10 +182,6 @@ usb_device_reset (struct usb_dev *dev)
 
 static const uint8_t freq_table[] = { 0xa0, 0x0f, 0, 0, }; /* dwDefaultClock */
 static const uint8_t data_rate_table[] = { 0x80, 0x25, 0, 0, }; /* dwDataRate */
-
-#if defined(PINPAD_DND_SUPPORT)
-static const uint8_t lun_table[] = { 0, 0, 0, 0, };
-#endif
 
 #ifdef FLASH_UPGRADE_SUPPORT
 static const uint8_t *const mem_info[] = { _regnual_start,  __heap_end__, };
@@ -341,53 +297,9 @@ usb_setup (struct usb_dev *dev)
 		return -1;
 	    }
 	}
-#ifdef HID_CARD_CHANGE_SUPPORT
-      else if (arg->index == HID_INTERFACE)
-	{
-	  switch (arg->request)
-	    {
-	    case USB_HID_REQ_GET_IDLE:
-	      return usb_lld_ctrl_send (dev, &hid_idle_rate, 1);
-	    case USB_HID_REQ_SET_IDLE:
-	      return usb_lld_ctrl_recv (dev, &hid_idle_rate, 1);
-
-	    case USB_HID_REQ_GET_REPORT:
-	      /* Request of LED status and key press */
-	      return usb_lld_ctrl_send (dev, &hid_report, 2);
-
-	    case USB_HID_REQ_SET_REPORT:
-	      /* Received LED set request */
-	      if (arg->len == 1)
-		return usb_lld_ctrl_recv (dev, &hid_report, arg->len);
-	      else
-		return usb_lld_ctrl_ack (dev);
-
-	    case USB_HID_REQ_GET_PROTOCOL:
-	    case USB_HID_REQ_SET_PROTOCOL:
-	      /* This driver doesn't support boot protocol.  */
-	      return -1;
-
-	    default:
-	      return -1;
-	    }
-	}
-#endif
 #ifdef ENABLE_VIRTUAL_COM_PORT
       else if (arg->index == VCOM_INTERFACE_0)
 	return vcom_port_data_setup (dev);
-#endif
-#ifdef PINPAD_DND_SUPPORT
-      else if (arg->index == MSC_INTERFACE)
-	{
-	  if (USB_SETUP_GET (arg->type))
-	    {
-	      if (arg->request == MSC_GET_MAX_LUN_COMMAND)
-		return usb_lld_ctrl_send (dev, lun_table, sizeof (lun_table));
-	    }
-	  else
-	    if (arg->request == MSC_MASS_STORAGE_RESET_COMMAND)
-	      return usb_lld_ctrl_ack (dev);
-	}
 #endif
     }
 
@@ -413,7 +325,7 @@ usb_ctrl_write_finish (struct usb_dev *dev)
 	  led_blink (LED_GNUK_EXEC);	/* Notify the main.  */
 	}
     }
-#if defined(HID_CARD_CHANGE_SUPPORT) || defined (ENABLE_VIRTUAL_COM_PORT)
+#if defined (ENABLE_VIRTUAL_COM_PORT)
   else if (type_rcp == (CLASS_REQUEST | INTERFACE_RECIPIENT))
     {
 # if defined(ENABLE_VIRTUAL_COM_PORT)
@@ -439,15 +351,6 @@ usb_ctrl_write_finish (struct usb_dev *dev)
 	  if (stdout.connected != connected_saved)
 	    chopstx_cond_signal (&stdout.cond_dev);
 	  chopstx_mutex_unlock (&stdout.m_dev);
-	}
-# endif
-# if defined(HID_CARD_CHANGE_SUPPORT)
-      if (arg->index == HID_INTERFACE && arg->request == USB_HID_REQ_SET_REPORT)
-	{
-	  if ((hid_report ^ hid_report_saved) & HID_LED_STATUS_CARDCHANGE)
-	    ccid_card_change_signal (CARD_CHANGE_TOGGLE);
-
-	  hid_report_saved = hid_report;
 	}
 # endif
     }

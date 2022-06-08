@@ -35,7 +35,6 @@ void ccid_card_change_signal (int how);
 #define EV_VERIFY_CMD_AVAILABLE   2
 #define EV_CMD_AVAILABLE          4
 #define EV_EXIT                   8
-#define EV_PINPAD_INPUT_DONE     16
 
 /* Maximum cmd apdu data is key import 24+4+256+256 (proc_key_import) */
 #define MAX_CMD_APDU_DATA_SIZE (24+4+256+256) /* without header */
@@ -439,31 +438,6 @@ extern const uint8_t gnuk_string_serial[];
 #define LED_WAIT_FOR_BUTTON	256
 #define LED_OFF	 LED_FINISH_COMMAND
 void led_blink (int spec);
-
-#if defined(PINPAD_SUPPORT)
-# if defined(PINPAD_CIR_SUPPORT)
-void cir_init (void);
-# elif defined(PINPAD_DIAL_SUPPORT)
-void dial_sw_disable (void);
-void dial_sw_enable (void);
-# elif defined(PINPAD_DND_SUPPORT)
-void msc_init (void);
-void msc_media_insert_change (int available);
-int msc_scsi_write (uint32_t lba, const uint8_t *buf, size_t size);
-int msc_scsi_read (uint32_t lba, const uint8_t **sector_p);
-void msc_scsi_stop (uint8_t code);
-# endif
-#define PIN_INPUT_CURRENT 1
-#define PIN_INPUT_NEW     2
-#define PIN_INPUT_CONFIRM 3
-#define MAX_PIN_CHARS 32
-extern uint8_t pin_input_buffer[MAX_PIN_CHARS];
-extern uint8_t pin_input_len;
-
-int pinpad_getline (int msg_code, uint32_t timeout_usec);
-
-#endif
-
 
 extern uint8_t _regnual_start[], __heap_end__[];
 
