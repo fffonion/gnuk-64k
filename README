@@ -1,14 +1,14 @@
 Gnuk - An Implementation of USB Cryptographic Token for GnuPG
 
-							    Version 2.0
-							     202?-0?-??
+							    Version 2.1
+							     2022-0?-??
 							   Niibe Yutaka
 				      Free Software Initiative of Japan
 
 Release Notes
 =============
 
-This is the release of Gnuk, version 2.0, which has major incompatible
+This is the release of Gnuk, version 2.1, which has major incompatible
 changes to Gnuk 1.
 
 Please update your documentation for Gnuk Token, so that the
@@ -16,10 +16,6 @@ instruction of importing keys won't cause any confusion.
 
 It has supports of Ed25519 and X25519 (ECDH on Curve25519).  It also
 has experimental support of ECDSA on secp256k1 and ECDH on secp256k1.
-
-It also supports RSA-4096, but users should know that it takes more
-than 8 seconds to sign/decrypt.  Key generation of RSA-4096 just fails,
-because the device doesn't have enough memory.
 
 It supports new KDF-DO feature.  Please note that this is
 experimental.  To use the feature, you need to use newer GnuPG (2.2.6
@@ -241,63 +237,11 @@ External source code
 
 Gnuk is distributed with external source code.
 
-* chopstx/  -- Chopstx 1.19
+* chopstx/  -- Chopstx 2.4
 
   We use Chopstx as the kernel for Gnuk.
 
   Chopstx is distributed under GPLv3+ (with a special exception).
-
-
-* polarssl/  -- based on PolarSSL 1.2.10 (now mbedTLS)
-
-  Souce code taken from: http://polarssl.org/
-
-  We use PolarSSL for RSA computation, and AES encryption/decryption.
-
-  PolarSSL is distributed under GPLv2+.  We use PolarSSL under GPLv3
-  as our options.
-
-  The file include/polarssl/bn_mul.h is heavily modified for ARM
-  Cortex-M3.
-
-  The function rsa_private in polarssl/library/rsa.c is modified so
-  that it doesn't check T against N.  The function rsa_pkcs1_sign is
-  modified to avoid warnings in case of !POLARSSL_PKCS1_V21.
-
-  The functions rsa_pkcs1_verify and rsa_rsassa_pkcs1_v15_verify in
-  include/polarssl/rsa.h and polarssl/library/rsa.c are modified
-  (fixed) for last argument SIG, as the memory at SIG aren't modified
-  by those routines.
-
-  The constant POLARSSL_MPI_MAX_SIZE in include/polarssl/bignum.h is
-  modified for 2048-bit keys only Gnuk.
-
-  The function mpi_mul_hlp in library/bignum.c is modified for more
-  optimization for ARM Cortex-M3.  Functions mpi_montred, mpi_sub_hlp,
-  mpi_sub_abs, mpi_mul_mpi, mpi_montmul, and mpi_exp_mod are modified
-  to avoid side channel attacks.  Note that we don't use RSA-blinding
-  technique for Gnuk.  Function mpi_gen_prime and mpi_is_prime are
-  modified to use Fouque-Tibouchi method.  Function mpi_exp_mod is
-  modified to use new function mpi_montsqr for speed up.
-
-  The file library/aes.c is modified so that some constants can
-  go to .sys section.
-
-  The file include/polarssl/config.h are modified not to define
-  POLARSSL_HAVE_LONGLONG to avoid linking libgcc, to define
-  POLARSSL_AES_ROM_TABLES to have AES tables, not to define
-  POLARSSL_CIPHER_MODE_CTR, POLARSSL_FS_IO, POLARSSL_PKCS1_V21,
-  POLARSSL_SELF_TEST, and POLARSSL_PADLOCK_C, and only define
-  POLARSSL_GENPRIME when defined KEYGEN_SUPPORT.
-
-  And polarssl/library/bignum.c is modified to work on 64-bit machine.
-
-  Aurelien Jarno also modified:
-
-	polarssl/include/polarssl/bn_mul.h
-	polarssl/library/bignum.c
-
-  See ChangeLog (and/or history of git) for detail.
 
 
 USB vendor ID and product ID (USB device ID)
@@ -363,10 +307,10 @@ You need GNU toolchain and newlib for 'arm-none-eabi' target.
 On Debian we can install the packages of gcc-arm-none-eabi
 and its friends.  I'm using:
 
-	binutils-arm-none-eabi	2.35.1-7+14+b1
-	gcc-arm-none-eabi 	15:8-2019-q3-1+b1
+	binutils-arm-none-eabi	2.37-7+15
+	gcc-arm-none-eabi 	15:10.3-2021.07-4
 	libnewlib-arm-none-eabi	3.3.0-1
-	gdb-multiarch 		10.1-1.7
+	gdb-multiarch 		10.1-2
 
 Or else, see https://launchpad.net/gcc-arm-embedded for preparation of
 GNU Toolchain for 'arm-none-eabi' target.

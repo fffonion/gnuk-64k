@@ -1,6 +1,17 @@
 Gnuk NEWS - User visible changes
 
 
+* Major changes in Gnuk 2.1
+
+  Released 2022-XX-XX, by NIIBE Yutaka
+
+** Removal of RSA support
+
+** Replace AES implementation
+
+** Change of authentication for firmware upgrade
+
+
 * Major changes in Gnuk 1.2.19
 
   Released 2021-10-12, by NIIBE Yutaka
