@@ -1154,15 +1154,14 @@ struct key_data_internal {
 #define CKDC_CALC  0
 #define CKDC_CHECK 1
 static int
-compute_key_data_checksum (struct key_data_internal *kdi, int prvkey_len,
-			   int check_or_calc)
+compute_key_data_checksum (uint8_t *data, int prvkey_len,
+			   uint32_t *checksum, int check_or_calc)
 {
   unsigned int i;
   uint32_t d[4] = { 0, 0, 0, 0 };
-  uint32_t *checksum = CHECKSUM_ADDR (*kdi, prvkey_len);
 
   for (i = 0; i < prvkey_len / sizeof (uint32_t); i++)
-    d[i&3] ^= kdi->data[i];
+    d[i&3] ^= data[i];
 
   if (check_or_calc == CKDC_CALC)	/* store */
     {
@@ -1209,15 +1208,14 @@ static void
 encrypt (const uint8_t *key, const uint8_t *iv,
 	 struct key_data_internal *kdi, int prvkey_len)
 {
-  uint8_t *data;
   int len = kdi_len (prvkey_len);
+  uint32_t *checksum = CHECKSUM_ADDR (*kdi, prvkey_len);
 
   DEBUG_INFO ("ENC\r\n");
   DEBUG_BINARY (data, len);
 
-  compute_key_data_checksum (kdi, prvkey_len, CKDC_CALC);
-  data = (uint8_t *)kdi;
-  crypt (key, iv, data, len, 0);
+  compute_key_data_checksum ((uint8_t *)kdi->data, prvkey_len, checksum, CKDC_CALC);
+  crypt (key, iv, (uint8_t *)kdi->data, len, 0);
 }
 
 static int
@@ -1227,9 +1225,10 @@ decrypt (const uint8_t *key, const uint8_t *iv,
   uint8_t *data = (uint8_t *)kdi;
   int len = kdi_len (prvkey_len);
   int r;
+  uint32_t *checksum = CHECKSUM_ADDR (*kdi, prvkey_len);
 
   crypt (key, iv, data, len, 0);
-  r = compute_key_data_checksum (kdi, prvkey_len, CKDC_CHECK);
+  r = compute_key_data_checksum ((uint8_t *)kdi->data, prvkey_len, checksum, CKDC_CHECK);
 
   DEBUG_INFO ("DEC\r\n");
   DEBUG_BINARY (data, len);
