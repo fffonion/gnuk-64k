@@ -32,8 +32,7 @@
 #include "gnuk.h"
 #include "status-code.h"
 #include "random.h"
-#include "polarssl/config.h"
-#include "polarssl/aes.h"
+#include "aes.h"
 #include "sha512.h"
 #include "shake256.h"
 
@@ -1192,9 +1191,9 @@ crypt (const uint8_t *key, const uint8_t *iv, uint8_t *data, int len,
   aes_context aes;
   uint8_t iv0[ENCRYPTION_BLOCK_SIZE];
   uint8_t stream_block[16];
-  size_t iv_offset = 0;
+  unsigned int iv_offset = 0;
 
-  aes_setkey_enc (&aes, key, DATA_ENCRYPTION_KEY_SIZE * 8);
+  aes_set_key (&aes, key);
   memset (iv0, 0, ENCRYPTION_BLOCK_SIZE - INITIAL_VECTOR_SIZE);
   memcpy (iv0 + ENCRYPTION_BLOCK_SIZE - INITIAL_VECTOR_SIZE,
 	  iv, INITIAL_VECTOR_SIZE);
@@ -1203,6 +1202,7 @@ crypt (const uint8_t *key, const uint8_t *iv, uint8_t *data, int len,
   else
     iv0[0] = 1;
   aes_crypt_ctr (&aes, len, &iv_offset, iv0, stream_block, data, data);
+  aes_clear_key (&aes);
 }
 
 static void

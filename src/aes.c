@@ -186,8 +186,8 @@ last_round_calc_step (uint32_t y0, uint32_t y1, uint32_t y2, uint32_t y3)
  */
 void
 aes_encrypt (const aes_context *ctx,
-             unsigned char output[AES_BLOCK_SIZE],
-             const unsigned char input[AES_BLOCK_SIZE])
+             const unsigned char input[AES_BLOCK_SIZE],
+             unsigned char output[AES_BLOCK_SIZE])
 {
   uint32_t X0, X1, X2, X3, Y0, Y1, Y2, Y3;
   const uint32_t *RK = ctx->rk;
@@ -233,4 +233,36 @@ aes_clear_key (aes_context *ctx)
   memset (ctx->rk, 0, sizeof ctx->rk);
   /* to compiler: no removal of memset above, please */
   asm ("" : : "m" (ctx->rk) : "memory");
+}
+
+/*
+ * AES counter mode encryption
+ */
+void
+aes_crypt_ctr (const aes_context *ctx, int len,
+               unsigned int *iv_off_p,
+               uint8_t iv[16], uint8_t str_block[16],
+               const uint8_t *input, uint8_t *output)
+{
+  unsigned int n = *iv_off_p;
+
+  while (len--)
+    {
+      if (n == 0)
+        {
+          int i;
+
+          aes_encrypt (ctx, iv, str_block);
+
+          /* increment big endian counter.  */
+          for (i = 16; i > 0; i--)
+            if (++iv[i - 1] != 0)
+              break;
+        }
+
+      *output++ = (*input++ ^ str_block[n]);
+      n = (n + 1) & 0x0F;
+    }
+
+  *iv_off_p = n;
 }
