@@ -345,7 +345,7 @@ gpg_get_algo_attr_key_size (enum kind_of_key kk, enum size_of_key s)
 	return 128;
     case ALGO_X448:
       if (s == GPG_KEY_STORAGE)
-	return 112;
+	return 128;
       else
 	return 56;
     ed25519:
