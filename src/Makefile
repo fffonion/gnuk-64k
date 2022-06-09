@@ -8,7 +8,7 @@ CHOPSTX = ../chopstx
 CSRC = main.c \
 	usb_desc.c usb_ctrl.c \
 	usb-ccid.c openpgp.c ac.c openpgp-do.c flash.c \
-        aes.c \
+        aes.c gcm-siv.c \
 	bn.c mod.c \
 	modp256k1.c jpc_p256k1.c ec_p256k1.c call-ec_p256k1.c \
 	mod25638.c ecc-ed25519.c ecc-mont.c sha512.c \

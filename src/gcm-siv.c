@@ -138,17 +138,14 @@ gfmul_mont (uint64_t r[2], const uint64_t a[2], const uint64_t b[2])
   r[0] ^= tmp2[0];
 }
 
-static void
-POLYVAL (const uint64_t *H, const uint8_t *input, unsigned int len,
-         uint64_t *result)
+void
+POLYVAL (const uint64_t H[2], const uint8_t *input, unsigned int len,
+         uint64_t result[2])
 {	
   uint64_t in[2];
   int i;
   int blocks = len/16;
 
-  if (blocks == 0)
-    return;
-	
   for (i = 0; i < blocks; i++)
     {
       in[0] = (uint64_t)input[16*i] | ((uint64_t)input[16*i+1] << 8)
@@ -160,6 +157,36 @@ POLYVAL (const uint64_t *H, const uint8_t *input, unsigned int len,
         | ((uint64_t)input[16*i+12] << 32) | ((uint64_t)input[16*i+13] << 40)
         | ((uint64_t)input[16*i+14] << 48) | ((uint64_t)input[16*i+15] << 56);
 		
+      result[0] ^= in[0];
+      result[1] ^= in[1];
+      gfmul_mont (result, H, result);
+    }
+
+  i = len - blocks * 16;
+  if (i != 0)
+    {
+      int j;
+      const uint8_t *p = &input[blocks*16];
+
+      in[0] = 0;
+      j = (i > 8)? 8: i;
+      while (j)
+        {
+          in[0] = (in[0] << 8) | *p++;
+          j--;
+        }
+
+      in[1] = 0;
+      if (i > 8)
+        {
+          j = i - 8;
+          while (j)
+            {
+              in[1] = (in[1] << 8) | *p++;
+              j--;
+            }
+        }
+
       result[0] ^= in[0];
       result[1] ^= in[1];
       gfmul_mont (result, H, result);

@@ -167,6 +167,8 @@ extern uint8_t ch_certificate_start;
 #define DATA_ENCRYPTION_NONCE_SIZE 12
 #define ENCRYPTION_BLOCK_SIZE      16
 #define DATA_ENCRYPTION_KEY_SIZE   32
+#define DATA_ENCRYPTION_TAG_SIZE   16
+#define DATA_ENCRYPTION_AUTH64_SIZE 2 /* size in uint64_t */
 
 #define MAX_PRVKEY_LEN 512	/* Maximum is the case for RSA 4096-bit.  */
 
@@ -183,7 +185,7 @@ struct prvkey_data {
   /*
    * Checksum
    */
-  uint8_t checksum_encrypted[ENCRYPTION_BLOCK_SIZE];
+  uint8_t checksum_encrypted[DATA_ENCRYPTION_TAG_SIZE];
   /*
    * DEK (Data Encryption Key) encrypted
    */

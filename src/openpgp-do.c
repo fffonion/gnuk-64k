@@ -1151,33 +1151,41 @@ struct key_data_internal {
   /* Checksum */
 };
 
+extern void
+POLYVAL (const uint64_t H[2], const uint8_t *input, unsigned int len,
+         uint64_t result[2]);
+
 #define CKDC_CALC  0
 #define CKDC_CHECK 1
 static int
-compute_key_data_checksum (const uint8_t auth_key[DATA_ENCRYPTION_KEY_SIZE],
-			   const uint8_t *data, int prvkey_len,
+compute_key_data_checksum (const uint64_t auth_key[DATA_ENCRYPTION_AUTH64_SIZE],
+                           uint8_t encr_key[DATA_ENCRYPTION_KEY_SIZE],
+			   const uint8_t *data, unsigned int prvkey_len,
 			   uint32_t *checksum, int check_or_calc)
 {
-  unsigned int i;
-  uint32_t d[4] = { 0, 0, 0, 0 };
   aes_context aes;
+  uint64_t tag[DATA_ENCRYPTION_AUTH64_SIZE];
+  uint64_t lenblk[2];
 
-  for (i = 0; i < prvkey_len / sizeof (uint32_t); i++)
-    d[i&3] ^= data[i];
+  tag[0] = tag[1] = 0;
+  lenblk[0] = 0;
+  lenblk[1] = prvkey_len * 8;
+  POLYVAL (auth_key, data, prvkey_len, tag);
+  POLYVAL (auth_key, (const uint8_t *)lenblk, sizeof lenblk, tag);
 
-  aes_set_key (&aes, auth_key);
+  aes_set_key (&aes, encr_key);
 
   if (check_or_calc == CKDC_CALC)	/* store */
     {
-      aes_encrypt (&aes, d, checksum);
+      aes_encrypt (&aes, (const unsigned char *)tag, (unsigned char *)checksum);
       aes_clear_key (&aes);
       return 0;
     }
   else				/* check */
     {
-      aes_encrypt (&aes, d, d);
+      aes_encrypt (&aes, (const unsigned char *)tag, (unsigned char *)tag);
       aes_clear_key (&aes);
-      return memcmp (checksum, d, ENCRYPTION_BLOCK_SIZE) == 0;
+      return memcmp (checksum, tag, DATA_ENCRYPTION_TAG_SIZE) == 0;
     }
 }
 
@@ -1188,40 +1196,39 @@ compute_key_data_checksum (const uint8_t auth_key[DATA_ENCRYPTION_KEY_SIZE],
  * There are two use cases for "crypt".  One is encryption/decryption
  * of DEK (data encoding key) and another is of key material.
  *
- * We share same IV between for DEK and for non-DEK, actually
- * differentiating IV-for-DEK and IV-for-non-DEK.
+ * We share same NONCE between for DEK and for non-DEK, with different
+ * 32-bit counter.
  */
 
 static void
-crypt0 (const uint8_t *key, uint8_t iv0[ENCRYPTION_BLOCK_SIZE],
+crypt0 (const uint8_t *key, uint8_t ctr_blk[ENCRYPTION_BLOCK_SIZE],
 	uint8_t *data, unsigned int len)
 {
   aes_context aes;
 
   aes_set_key (&aes, key);
-  aes_ctr (&aes, iv0, data, len, data);
+  aes_ctr (&aes, ctr_blk, data, len, data);
   aes_clear_key (&aes);
 }
 
 static void
-crypt1 (const uint8_t *key, const uint8_t *iv, uint8_t *data,
+crypt1 (const uint8_t *key, const uint8_t *nonce, uint8_t *data,
         unsigned int len)
 {
   aes_context aes;
-  uint8_t iv0[ENCRYPTION_BLOCK_SIZE];
+  uint8_t ctr_blk[ENCRYPTION_BLOCK_SIZE];
 
   aes_set_key (&aes, key);
-  memset (iv0, 0, ENCRYPTION_BLOCK_SIZE - DATA_ENCRYPTION_NONCE_SIZE);
-  memcpy (iv0 + ENCRYPTION_BLOCK_SIZE - DATA_ENCRYPTION_NONCE_SIZE,
-	  iv, DATA_ENCRYPTION_NONCE_SIZE);
-  memcpy (iv0, "\xd1\xff\xd1\xff", 4);
-  aes_ctr (&aes, iv0, data, len, data);
+  memcpy (ctr_blk, "\xd1\xff\xd1\xff", 4);
+  memcpy (ctr_blk + ENCRYPTION_BLOCK_SIZE - DATA_ENCRYPTION_NONCE_SIZE,
+	  nonce, DATA_ENCRYPTION_NONCE_SIZE);
+  aes_ctr (&aes, ctr_blk, data, len, data);
   aes_clear_key (&aes);
 }
 
 static void
-derive_keys (const uint8_t *key_generating_key, const uint8_t *iv,
-	     uint8_t auth_key[DATA_ENCRYPTION_KEY_SIZE],
+derive_keys (const uint8_t *key_generating_key, const uint8_t *nonce,
+	     uint64_t auth_key[DATA_ENCRYPTION_AUTH64_SIZE],
 	     uint8_t encr_key[DATA_ENCRYPTION_KEY_SIZE])
 {
   aes_context aes;
@@ -1230,12 +1237,12 @@ derive_keys (const uint8_t *key_generating_key, const uint8_t *iv,
 
   aes_set_key (&aes, key_generating_key);
   memset (blk0, 0, 4);
-  memcpy (blk0+4, iv, 12);
+  memcpy (blk0+4, iv, DATA_ENCRYPTION_NONCE_SIZE);
   aes_encrypt (&aes, blk0, blk1);
   memcpy (&auth_key[0], blk1, 8);
   blk0[0] = 1;
   aes_encrypt (&aes, blk0, blk1);
-  memcpy (&auth_key[8], blk1, 8);
+  memcpy (&auth_key[1], blk1, 8);
   blk0[0] = 2;
   aes_encrypt (&aes, blk0, blk1);
   memcpy (&encr_key[0], blk1, 8);
@@ -1248,14 +1255,6 @@ derive_keys (const uint8_t *key_generating_key, const uint8_t *iv,
   blk0[0] = 5;
   aes_encrypt (&aes, blk0, blk1);
   memcpy (&encr_key[24], blk1, 8);
-
-  /*Not 8452 compliant, but we don't have AES128 */
-  blk0[0] = 6;
-  aes_encrypt (&aes, blk0, blk1);
-  memcpy (&auth_key[16], blk1, 8);
-  blk0[0] = 7;
-  aes_encrypt (&aes, blk0, blk1);
-  memcpy (&auth_key[24], blk1, 8);
   aes_clear_key (&aes);
 }
 
@@ -1264,12 +1263,12 @@ encrypt (const uint8_t *key, const uint8_t *nonce,
 	 struct key_data_internal *kdi, int prvkey_len)
 {
   uint32_t *checksum = CHECKSUM_ADDR (*kdi, prvkey_len);
-  uint8_t auth_key[DATA_ENCRYPTION_KEY_SIZE];
+  uint64_t auth_key[DATA_ENCRYPTION_AUTH64_SIZE];
   uint8_t encr_key[DATA_ENCRYPTION_KEY_SIZE];
   uint8_t ctr_blk[ENCRYPTION_BLOCK_SIZE];
 
   derive_keys (key, nonce, auth_key, encr_key);
-  compute_key_data_checksum (auth_key, (uint8_t *)kdi->data,
+  compute_key_data_checksum (auth_key, encr_key, (uint8_t *)kdi->data,
 			     prvkey_len, checksum, CKDC_CALC);
   memcpy (ctr_blk, checksum, ENCRYPTION_BLOCK_SIZE);
   ctr_blk[15] |= 0x80;
@@ -1282,7 +1281,7 @@ decrypt (const uint8_t *key, const uint8_t *nonce,
 {
   int r;
   uint32_t *checksum = CHECKSUM_ADDR (*kdi, prvkey_len);
-  uint8_t auth_key[DATA_ENCRYPTION_KEY_SIZE];
+  uint64_t auth_key[DATA_ENCRYPTION_AUTH64_SIZE];
   uint8_t encr_key[DATA_ENCRYPTION_KEY_SIZE];
   uint8_t ctr_blk[ENCRYPTION_BLOCK_SIZE];
 
@@ -1290,7 +1289,7 @@ decrypt (const uint8_t *key, const uint8_t *nonce,
   memcpy (ctr_blk, checksum, ENCRYPTION_BLOCK_SIZE);
   ctr_blk[15] |= 0x80;
   crypt0 (encr_key, ctr_blk, (uint8_t *)kdi->data, prvkey_len);
-  r = compute_key_data_checksum (auth_key, (uint8_t *)kdi->data,
+  r = compute_key_data_checksum (auth_key, encr_key, (uint8_t *)kdi->data,
 				 prvkey_len, checksum, CKDC_CHECK);
   return r;
 }
