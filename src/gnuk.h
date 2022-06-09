@@ -164,9 +164,9 @@ int flash_write_binary (uint8_t file_id, const uint8_t *data,
 /* Linker set these two symbols */
 extern uint8_t ch_certificate_start;
 
-#define INITIAL_VECTOR_SIZE      12
-#define ENCRYPTION_BLOCK_SIZE    16
-#define DATA_ENCRYPTION_KEY_SIZE 32
+#define DATA_ENCRYPTION_NONCE_SIZE 12
+#define ENCRYPTION_BLOCK_SIZE      16
+#define DATA_ENCRYPTION_KEY_SIZE   32
 
 #define MAX_PRVKEY_LEN 512	/* Maximum is the case for RSA 4096-bit.  */
 
@@ -177,9 +177,9 @@ struct key_data {
 
 struct prvkey_data {
   /*
-   * IV: Initial Vector
+   * Nonce of 96-bit
    */
-  uint8_t iv[INITIAL_VECTOR_SIZE];
+  uint8_t nonce[DATA_ENCRYPTION_NONCE_SIZE];
   /*
    * Checksum
    */
