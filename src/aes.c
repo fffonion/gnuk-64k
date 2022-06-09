@@ -24,6 +24,11 @@
  * keysize fixed for AES-256.
  *
  */
+/*
+ * NOTE: This implementation is not safe against various kinds of
+ * side-channel attacks.  For example, when it uses cache memory or
+ * flash access accelerator, observing table access may be possible.
+ */
 
 /*
  * For AES-256:
@@ -239,30 +244,26 @@ aes_clear_key (aes_context *ctx)
  * AES counter mode encryption
  */
 void
-aes_crypt_ctr (const aes_context *ctx, int len,
-               unsigned int *iv_off_p,
-               uint8_t iv[16], uint8_t str_block[16],
-               const uint8_t *input, uint8_t *output)
+aes_ctr (const aes_context *ctx, uint8_t ctr_blk[AES_BLOCK_SIZE],
+         const uint8_t *input, unsigned int len, uint8_t *output)
 {
-  unsigned int n = *iv_off_p;
+  uint32_t counter;
 
-  while (len--)
+  counter = get_uint32_le (ctr_blk, 0);
+
+  while (len)
     {
-      if (n == 0)
-        {
-          int i;
+      uint8_t blk[AES_BLOCK_SIZE];
+      int i, todo;
 
-          aes_encrypt (ctx, iv, str_block);
+      todo = len < AES_BLOCK_SIZE ? len : AES_BLOCK_SIZE;
 
-          /* increment big endian counter.  */
-          for (i = 16; i > 0; i--)
-            if (++iv[i - 1] != 0)
-              break;
-        }
+      aes_encrypt (ctx, ctr_blk, blk);
+      counter++;
+      put_uint32_le (ctr_blk, 0, counter);
 
-      *output++ = (*input++ ^ str_block[n]);
-      n = (n + 1) & 0x0F;
+      for (i = 0; i < todo; i++)
+        *output++ = (*input++ ^ blk[i]);
+      len -= todo;
     }
-
-  *iv_off_p = n;
 }

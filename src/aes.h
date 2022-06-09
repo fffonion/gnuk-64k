@@ -57,15 +57,11 @@ void aes_clear_key (aes_context *ctx);
  * AES counter mode encryption
  *
  * @param ctx      AES context
- * @param len      length of input/output
- * @param iv_off_p offset in the current stream_block
- * @param iv       iv and counter
- * @param st_block saved stream block
- * @param output   output
+ * @param ctr_blk  counter block
  * @param input    input
+ * @param len      length of input/output
+ * @param output   output
  *
  */
-void aes_crypt_ctr (const aes_context *ctx, int len,
-                    unsigned int *iv_off_p,
-                    uint8_t iv[16], uint8_t str_block[16],
-                    const uint8_t *input, uint8_t *output);
+void aes_ctr (const aes_context *ctx, uint8_t ctr_blk[16],
+              const uint8_t *input, unsigned int len, uint8_t *output);

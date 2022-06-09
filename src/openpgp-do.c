@@ -1194,31 +1194,28 @@ compute_key_data_checksum (const uint8_t auth_key[DATA_ENCRYPTION_KEY_SIZE],
 
 static void
 crypt0 (const uint8_t *key, uint8_t iv0[ENCRYPTION_BLOCK_SIZE],
-	uint8_t *data, int len)
+	uint8_t *data, unsigned int len)
 {
   aes_context aes;
-  uint8_t stream_block[16];
-  unsigned int iv_offset = 0;
 
   aes_set_key (&aes, key);
-  aes_crypt_ctr (&aes, len, &iv_offset, iv0, stream_block, data, data);
+  aes_ctr (&aes, iv0, data, len, data);
   aes_clear_key (&aes);
 }
 
 static void
-crypt1 (const uint8_t *key, const uint8_t *iv, uint8_t *data, int len)
+crypt1 (const uint8_t *key, const uint8_t *iv, uint8_t *data,
+        unsigned int len)
 {
   aes_context aes;
   uint8_t iv0[ENCRYPTION_BLOCK_SIZE];
-  uint8_t stream_block[16];
-  unsigned int iv_offset = 0;
 
   aes_set_key (&aes, key);
   memset (iv0, 0, ENCRYPTION_BLOCK_SIZE - INITIAL_VECTOR_SIZE);
   memcpy (iv0 + ENCRYPTION_BLOCK_SIZE - INITIAL_VECTOR_SIZE,
 	  iv, INITIAL_VECTOR_SIZE);
   memcpy (iv0, "\xd1\xff\xd1\xff", 4);
-  aes_crypt_ctr (&aes, len, &iv_offset, iv0, stream_block, data, data);
+  aes_ctr (&aes, iv0, data, len, data);
   aes_clear_key (&aes);
 }
 
