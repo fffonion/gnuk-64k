@@ -396,6 +396,7 @@ flash_key_addr (enum kind_of_key kk)
 
 int
 flash_key_write (enum kind_of_key kk, int algo,
+                 const uint8_t *nonce, const uint8_t *tag,
 		 const uint8_t *key_data, int key_data_len,
 		 const uint8_t *pubkey, int pubkey_len)
 {
@@ -403,8 +404,9 @@ flash_key_write (enum kind_of_key kk, int algo,
   uintptr_t addr;
   int i;
   uint8_t *key_addr = flash_key_getpage (kk);
-  uint16_t len = key_data_len + pubkey_len;
+  uint16_t len = 16 + key_data_len + pubkey_len;
 
+  (void)nonce;
   addr = (uintptr_t)key_addr;
   pkc_key[kk].key_addr = key_addr + 2;
 
@@ -412,6 +414,14 @@ flash_key_write (enum kind_of_key kk, int algo,
   if (flash_program_halfword (addr, hw) != 0)
     return -1;
   addr += 2;
+
+  for (i = 0; i < 16/2; i ++)
+    {
+      hw = tag[i*2] | (tag[i*2+1]<<8);
+      if (flash_program_halfword (addr, hw) != 0)
+	return -1;
+      addr += 2;
+    }
 
   for (i = 0; i < key_data_len/2; i ++)
     {

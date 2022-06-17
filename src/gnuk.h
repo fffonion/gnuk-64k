@@ -146,6 +146,7 @@ const uint8_t *flash_do_write (uint8_t nr, const uint8_t *data, int len);
 const uint8_t * flash_key_addr (enum kind_of_key kk);
 void flash_key_release (enum kind_of_key);
 int flash_key_write (enum kind_of_key, int algo,
+                     const uint8_t *nonce, const uint8_t *tag,
 		     const uint8_t *key_data, int key_data_len,
 		     const uint8_t *pubkey, int pubkey_len);
 void flash_set_data_pool_last (const uint8_t *p);
@@ -181,10 +182,6 @@ struct prvkey_data {
    * Nonce of 96-bit
    */
   uint8_t nonce[DATA_ENCRYPTION_NONCE_SIZE];
-  /*
-   * Checksum
-   */
-  uint8_t checksum_encrypted[DATA_ENCRYPTION_TAG_SIZE];
   /*
    * DEK (Data Encryption Key) encrypted
    */

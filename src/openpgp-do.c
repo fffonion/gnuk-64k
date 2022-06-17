@@ -1223,6 +1223,7 @@ gpg_do_load_prvkey (enum kind_of_key kk, int who, const uint8_t *keystring)
   const uint8_t *key_addr;
   uint8_t dek[DATA_ENCRYPTION_KEY_SIZE];
   const uint8_t *nonce;
+  uint8_t *tag;
   struct key_data_internal kdi;
   int r;
   const uint8_t *pubkey;
@@ -1239,19 +1240,18 @@ gpg_do_load_prvkey (enum kind_of_key kk, int who, const uint8_t *keystring)
 
   pubkey = gpg_do_pubkey_addr (kk);
 
-  memcpy (kdi.data, key_addr, prvkey_len);
+  memcpy (kdi.data, key_addr + DATA_ENCRYPTION_TAG_SIZE, prvkey_len);
   nonce = &do_data[1];
-  memcpy (CHECKSUM_ADDR (kdi, prvkey_len),
-	  nonce + DATA_ENCRYPTION_NONCE_SIZE, ENCRYPTION_BLOCK_SIZE);
+  tag = CHECKSUM_ADDR (kdi, prvkey_len);
+  memcpy (tag, key_addr, DATA_ENCRYPTION_TAG_SIZE);
 
-  memcpy (dek, nonce + DATA_ENCRYPTION_NONCE_SIZE + ENCRYPTION_BLOCK_SIZE
-	  + DATA_ENCRYPTION_KEY_SIZE * (who - BY_USER),
+  memcpy (dek, nonce + DATA_ENCRYPTION_NONCE_SIZE
+          + DATA_ENCRYPTION_KEY_SIZE * (who - BY_USER),
 	  DATA_ENCRYPTION_KEY_SIZE);
   decrypt_dek (keystring, nonce, dek);
 
   r = gcm_siv_decrypt (dek, nonce, pubkey, pubkey_len,
-                       (uint8_t *)kdi.data, prvkey_len,
-                       CHECKSUM_ADDR (kdi, prvkey_len));
+                       (uint8_t *)kdi.data, prvkey_len, tag);
   memset (dek, 0, DATA_ENCRYPTION_KEY_SIZE);
   if (!r)
     {
@@ -1345,6 +1345,7 @@ gpg_do_write_prvkey (enum kind_of_key kk, const uint8_t *key_data,
   enum kind_of_key kk0;
   int pw_len;
   const uint8_t *initial_pw;
+  uint8_t *tag;
 
   DEBUG_INFO ("Key import\r\n");
   DEBUG_SHORT (prvkey_len);
@@ -1413,21 +1414,19 @@ gpg_do_write_prvkey (enum kind_of_key kk, const uint8_t *key_data,
 	gpg_do_chks_prvkey (kk0, BY_RESETCODE, NULL, 0, NULL);
       }
 
+  tag = CHECKSUM_ADDR (kdi, prvkey_len);
   gcm_siv_encrypt (dek, pd->nonce, pubkey, pubkey_len,
-                   (uint8_t *)kdi.data, prvkey_len,
-                   CHECKSUM_ADDR (kdi, prvkey_len));
+                   (uint8_t *)kdi.data, prvkey_len, tag);
   random_bytes_free (dek);
 
-  r = flash_key_write (kk, attr, (const uint8_t *)kdi.data, prvkey_len,
+  r = flash_key_write (kk, attr, nonce, tag,
+                       (const uint8_t *)kdi.data, prvkey_len,
 		       pubkey, pubkey_len);
   if (r < 0)
     {
       memset (pd, 0, sizeof (struct prvkey_data));
       return r;
     }
-
-  memcpy (pd->checksum_encrypted, CHECKSUM_ADDR (kdi, prvkey_len),
-	  ENCRYPTION_BLOCK_SIZE);
 
   encrypt_dek (ks, pd->nonce, pd->dek_encrypted_1);
 
@@ -1485,7 +1484,7 @@ gpg_do_chks_prvkey (enum kind_of_key kk,
   memcpy (pd, &do_data[1], sizeof (struct prvkey_data));
 
   dek_p = ((uint8_t *)pd) + DATA_ENCRYPTION_NONCE_SIZE
-    + ENCRYPTION_BLOCK_SIZE + DATA_ENCRYPTION_KEY_SIZE * (who_old - BY_USER);
+    + DATA_ENCRYPTION_KEY_SIZE * (who_old - BY_USER);
   memcpy (dek, dek_p, DATA_ENCRYPTION_KEY_SIZE);
   if (who_new == 0)		/* Remove */
     {
@@ -2245,7 +2244,7 @@ gpg_do_pubkey_addr (enum kind_of_key kk)
   if (key_addr == NULL)
     return NULL;
 
-  return key_addr + prvkey_len;
+  return key_addr + DATA_ENCRYPTION_TAG_SIZE + prvkey_len;
 }
 
 void
