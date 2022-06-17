@@ -1217,17 +1217,16 @@ int
 gpg_do_load_prvkey (enum kind_of_key kk, int who, const uint8_t *keystring)
 {
   uint8_t nr = get_do_ptr_nr_for_kk (kk);
-  int prvkey_len = gpg_get_algo_attr_key_size (kk, GPG_KEY_PRIVATE);
-  int pubkey_len = gpg_get_algo_attr_key_size (kk, GPG_KEY_PUBLIC);
   const uint8_t *do_data = do_ptr[nr];
-  const uint8_t *key_addr;
   uint8_t dek[DATA_ENCRYPTION_KEY_SIZE];
-  const uint8_t *nonce;
-  uint8_t *tag;
   struct key_data_internal kdi;
   int r;
+  const uint8_t *nonce;
+  const uint8_t *tag;
   const uint8_t *pubkey;
   const uint8_t *prvkey;
+  int prvkey_len;
+  int pubkey_len;
 
   DEBUG_INFO ("Loading private key: ");
   DEBUG_BYTE (kk);
@@ -1235,18 +1234,11 @@ gpg_do_load_prvkey (enum kind_of_key kk, int who, const uint8_t *keystring)
   if (do_data == NULL)
     return 0;
 
-  key_addr = flash_key_addr (kk);
-  if (key_addr == NULL)
+  if (flash_key_addr (kk, &nonce, &tag, &prvkey, &prvkey_len,
+                      &pubkey, &pubkey_len) == NULL)
     return 0;
 
-  nonce = key_addr;
-  prvkey = key_addr + DATA_ENCRYPTION_NONCE_SIZE + DATA_ENCRYPTION_TAG_SIZE;
-  pubkey = prvkey + prvkey_len;
-
   memcpy (kdi.data, prvkey, prvkey_len);
-  tag = CHECKSUM_ADDR (kdi, prvkey_len);
-  memcpy (tag, key_addr + DATA_ENCRYPTION_NONCE_SIZE, DATA_ENCRYPTION_TAG_SIZE);
-
   memcpy (dek, (&do_data[1]) + DATA_ENCRYPTION_KEY_SIZE * (who - BY_USER),
 	  DATA_ENCRYPTION_KEY_SIZE);
   decrypt_dek (keystring, nonce, dek);
@@ -1479,16 +1471,14 @@ gpg_do_chks_prvkey (enum kind_of_key kk,
   uint8_t *dek_p;
   int update_needed = 0;
   int r = 1;			/* Success */
-  const uint8_t *key_addr;
   const uint8_t *nonce;
 
   if (do_data == NULL)
     return 0;			/* No private key */
 
-  key_addr = flash_key_addr (kk);
-  if (key_addr == NULL)
+  if (flash_key_addr (kk, &nonce, NULL, NULL, NULL,
+                      NULL, NULL) == NULL)
     return 0;			/* No private key */
-  nonce = key_addr;
 
   memcpy (pd, &do_data[1], sizeof (struct prvkey_data));
 
@@ -2246,14 +2236,13 @@ gpg_do_put_data (uint16_t tag, const uint8_t *data, int len)
 const uint8_t *
 gpg_do_pubkey_addr (enum kind_of_key kk)
 {
-  int prvkey_len = gpg_get_algo_attr_key_size (kk, GPG_KEY_PRIVATE);
-  const uint8_t *key_addr = flash_key_addr (kk);
+  const uint8_t *pubkey;
 
-  if (key_addr == NULL)
-    return NULL;
+  if (flash_key_addr (kk, NULL, NULL, NULL, NULL,
+                      &pubkey, NULL) == NULL)
+    return 0;
 
-  return key_addr + DATA_ENCRYPTION_NONCE_SIZE + DATA_ENCRYPTION_TAG_SIZE
-    + prvkey_len;
+  return pubkey;
 }
 
 void

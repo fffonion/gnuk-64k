@@ -143,7 +143,10 @@ void flash_activate (void);
 void flash_key_storage_init (void);
 void flash_do_release (const uint8_t *);
 const uint8_t *flash_do_write (uint8_t nr, const uint8_t *data, int len);
-const uint8_t * flash_key_addr (enum kind_of_key kk);
+const uint8_t *flash_key_addr (enum kind_of_key kk,
+                               const uint8_t **nonce_p, const uint8_t **tag_p,
+                               const uint8_t **prvkey_p, int *prvkey_len_p,
+                               const uint8_t **pubkey_p, int *pubkey_len_p);
 void flash_key_release (enum kind_of_key);
 int flash_key_write (enum kind_of_key, int algo,
                      const uint8_t *nonce, const uint8_t *tag,
@@ -443,4 +446,4 @@ void gcm_siv_encrypt (const uint8_t *key, const uint8_t *nonce,
                       uint8_t *data, int data_len, uint8_t *tag);
 int gcm_siv_decrypt (const uint8_t *key, const uint8_t *nonce,
                      const uint8_t *ad, unsigned int ad_len,
-                     uint8_t *data, int data_len, uint8_t *tag);
+                     uint8_t *data, int data_len, const uint8_t *tag);

@@ -166,7 +166,7 @@ flash_terminate (void)
   int i;
 
   for (i = 0; i < MAX_PKC_KEY; i++)
-    flash_erase_page ((uintptr_t)flash_key_getpage (i));
+    flash_key_release (i);
   flash_erase_page ((uintptr_t)FLASH_ADDR_DATA_STORAGE_START);
   flash_erase_page ((uintptr_t)(FLASH_ADDR_DATA_STORAGE_START + flash_page_size));
   data_pool = FLASH_ADDR_DATA_STORAGE_START;
@@ -200,7 +200,7 @@ flash_key_storage_init (void)
 
       tag = (b0 & FLASH_PKC_TAG_MASK);
       if (tag != FLASH_PKC_TAG_NONE)
-        pkc_key[i].key_addr = p + 2;
+        pkc_key[i].key_addr = p;
 
       p += flash_page_size;
     }
@@ -389,9 +389,53 @@ flash_key_getpage (enum kind_of_key kk)
 }
 
 const uint8_t *
-flash_key_addr (enum kind_of_key kk)
+flash_key_addr (enum kind_of_key kk,
+                const uint8_t **nonce_p, const uint8_t **tag_p,
+                const uint8_t **prvkey_p, int *prvkey_len_p,
+                const uint8_t **pubkey_p, int *pubkey_len_p)
 {
-  return pkc_key[kk].key_addr;
+  const uint8_t *key_addr = pkc_key[kk].key_addr;
+
+  if (key_addr)
+    {
+      const uint8_t *addr = key_addr;
+      int algo;
+      int prvkey_len;
+      int pubkey_len;
+
+      algo = (*addr) >> 4;
+      addr += 2;
+      prvkey_len = gpg_get_algo_key_size (algo, GPG_KEY_PRIVATE);
+      pubkey_len = gpg_get_algo_key_size (algo, GPG_KEY_PUBLIC);
+      if (nonce_p)
+        *nonce_p = addr;
+      addr += DATA_ENCRYPTION_NONCE_SIZE;
+      if (tag_p)
+        *tag_p = addr;
+      addr += DATA_ENCRYPTION_TAG_SIZE;
+      if (prvkey_p)
+        *prvkey_p = addr;
+      if (prvkey_len_p)
+        *prvkey_len_p = prvkey_len;
+      addr += prvkey_len;
+      if (pubkey_p)
+        *pubkey_p = addr;
+      if (pubkey_len_p)
+        *pubkey_len_p = pubkey_len;
+    }
+  else
+    {
+      if (nonce_p)
+        *nonce_p = NULL;
+      if (tag_p)
+        *tag_p = NULL;
+      if (prvkey_p)
+        *prvkey_p = NULL;
+      if (pubkey_p)
+        *pubkey_p = NULL;
+    }
+
+  return key_addr + 2;
 }
 
 int
@@ -404,17 +448,18 @@ flash_key_write (enum kind_of_key kk, int algo,
   uintptr_t addr;
   int i;
   uint8_t *key_addr = flash_key_getpage (kk);
-  uint16_t len = 12 + 16 + key_data_len + pubkey_len;
+  uint16_t len = DATA_ENCRYPTION_NONCE_SIZE + DATA_ENCRYPTION_TAG_SIZE
+    + key_data_len + pubkey_len;
 
   addr = (uintptr_t)key_addr;
-  pkc_key[kk].key_addr = key_addr + 2;
+  pkc_key[kk].key_addr = key_addr;
 
   hw = ((algo << 4) | ((len >> 8) & 0x0f)) | ((len & 0xff) << 8);
   if (flash_program_halfword (addr, hw) != 0)
     return -1;
   addr += 2;
 
-  for (i = 0; i < 12/2; i ++)
+  for (i = 0; i < DATA_ENCRYPTION_NONCE_SIZE/2; i ++)
     {
       hw = nonce[i*2] | (nonce[i*2+1]<<8);
       if (flash_program_halfword (addr, hw) != 0)
@@ -422,7 +467,7 @@ flash_key_write (enum kind_of_key kk, int algo,
       addr += 2;
     }
 
-  for (i = 0; i < 16/2; i ++)
+  for (i = 0; i < DATA_ENCRYPTION_TAG_SIZE/2; i ++)
     {
       hw = tag[i*2] | (tag[i*2+1]<<8);
       if (flash_program_halfword (addr, hw) != 0)
