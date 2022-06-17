@@ -179,10 +179,6 @@ struct key_data {
 
 struct prvkey_data {
   /*
-   * Nonce of 96-bit
-   */
-  uint8_t nonce[DATA_ENCRYPTION_NONCE_SIZE];
-  /*
    * DEK (Data Encryption Key) encrypted
    */
   uint8_t dek_encrypted_1[DATA_ENCRYPTION_KEY_SIZE]; /* For user */
