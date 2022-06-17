@@ -291,6 +291,8 @@ gcm_siv_decrypt (const uint8_t *key, const uint8_t *nonce,
   uint8_t ctr_blk[ENCRYPTION_BLOCK_SIZE];
   uint64_t checksum[DATA_ENCRYPTION_AUTH64_SIZE];
   aes_context aes;
+  uint8_t d;
+  int i;
 
   derive_keys (key, nonce, auth_key, encr_key);
   memcpy (ctr_blk, tag, ENCRYPTION_BLOCK_SIZE);
@@ -301,5 +303,8 @@ gcm_siv_decrypt (const uint8_t *key, const uint8_t *nonce,
   aes_encrypt (&aes, (const unsigned char *)checksum,
                (unsigned char *)checksum);
   aes_clear_key (&aes);
-  return memcmp (checksum, tag, DATA_ENCRYPTION_TAG_SIZE) == 0;
+  d = 0;
+  for (i = 0; i < DATA_ENCRYPTION_TAG_SIZE; i++)
+    d |= ((unsigned char *)checksum)[i] ^ tag[i];
+  return d == 0;
 }
