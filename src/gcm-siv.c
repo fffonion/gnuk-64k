@@ -20,6 +20,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
  */
+/*
+ * This implementation assumes little-endian.
+ */
 
 #include <stdint.h>
 
@@ -165,26 +168,18 @@ POLYVAL (const uint64_t H[2], const uint8_t *input, unsigned int len,
   i = len - blocks * 16;
   if (i != 0)
     {
-      int j;
+      int k;
       const uint8_t *p = &input[blocks*16];
 
       in[0] = 0;
-      j = (i > 8)? 8: i;
-      while (j)
-        {
-          in[0] = (in[0] << 8) | *p++;
-          j--;
-        }
+      for (k = 0; k < ((i > 8)? 8: i); k++)
+	in[0] |= ((uint64_t)(*p++) << (k*8));
 
       in[1] = 0;
       if (i > 8)
         {
-          j = i - 8;
-          while (j)
-            {
-              in[1] = (in[1] << 8) | *p++;
-              j--;
-            }
+	  for (k = 0; k < i - 8; k++)
+	    in[1] |= ((uint64_t)(*p++) << (k*8));
         }
 
       result[0] ^= in[0];
