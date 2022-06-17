@@ -446,6 +446,6 @@ uint8_t * sram_address (uint32_t offset);
 const uint8_t *gpg_do_pubkey_addr (enum kind_of_key kk);
 
 void gcm_siv_encrypt (const uint8_t *key, const uint8_t *nonce,
-                      uint8_t *data, int prvkey_len);
+                      uint8_t *data, int data_len, uint8_t *tag);
 int gcm_siv_decrypt (const uint8_t *key, const uint8_t *nonce,
-                     uint8_t *data, int prvkey_len);
+                     uint8_t *data, int data_len, uint8_t *tag);

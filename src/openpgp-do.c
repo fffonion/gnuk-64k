@@ -1134,7 +1134,7 @@ proc_resetting_code (const uint8_t *data, int len)
 
 
 #define CHECKSUM_ADDR(kdi,prvkey_len) \
-	(&(kdi).data[prvkey_len / sizeof (uint32_t)])
+	(uint8_t *)(&(kdi).data[prvkey_len / sizeof (uint32_t)])
 #define kdi_len(prvkey_len) (prvkey_len+ENCRYPTION_BLOCK_SIZE)
 struct key_data_internal {
   uint32_t data[(MAX_PRVKEY_LEN+ENCRYPTION_BLOCK_SIZE) / sizeof (uint32_t)];
@@ -1245,7 +1245,8 @@ gpg_do_load_prvkey (enum kind_of_key kk, int who, const uint8_t *keystring)
 	  DATA_ENCRYPTION_KEY_SIZE);
   decrypt_dek (keystring, nonce, dek);
 
-  r = gcm_siv_decrypt (dek, nonce, (uint8_t *)kdi.data, prvkey_len);
+  r = gcm_siv_decrypt (dek, nonce, (uint8_t *)kdi.data, prvkey_len,
+                       CHECKSUM_ADDR (kdi, prvkey_len));
   memset (dek, 0, DATA_ENCRYPTION_KEY_SIZE);
   if (!r)
     {
@@ -1407,7 +1408,8 @@ gpg_do_write_prvkey (enum kind_of_key kk, const uint8_t *key_data,
 	gpg_do_chks_prvkey (kk0, BY_RESETCODE, NULL, 0, NULL);
       }
 
-  gcm_siv_encrypt (dek, pd->nonce, (uint8_t *)kdi.data, prvkey_len);
+  gcm_siv_encrypt (dek, pd->nonce, (uint8_t *)kdi.data, prvkey_len,
+                   CHECKSUM_ADDR (kdi, prvkey_len));
   random_bytes_free (dek);
 
   r = flash_key_write (kk, attr, (const uint8_t *)kdi.data, prvkey_len,

@@ -208,7 +208,7 @@ static int
 compute_key_data_checksum (const uint64_t auth_key[DATA_ENCRYPTION_AUTH64_SIZE],
                            uint8_t encr_key[DATA_ENCRYPTION_KEY_SIZE],
 			   const uint8_t *nonce,
-			   const uint8_t *data, unsigned int prvkey_len,
+			   const uint8_t *data, unsigned int data_len,
 			   uint8_t *checksum, int check_or_calc)
 {
   aes_context aes;
@@ -219,8 +219,8 @@ compute_key_data_checksum (const uint64_t auth_key[DATA_ENCRYPTION_AUTH64_SIZE],
 
   tag[0] = tag[1] = 0;
   lenblk[0] = 0;
-  lenblk[1] = prvkey_len * 8;
-  POLYVAL (auth_key, data, prvkey_len, tag);
+  lenblk[1] = data_len * 8;
+  POLYVAL (auth_key, data, data_len, tag);
   POLYVAL (auth_key, (const uint8_t *)lenblk, sizeof lenblk, tag);
   /* XOR the TAG by NONCE. */
   p = (uint8_t *)tag;
@@ -287,40 +287,36 @@ derive_keys (const uint8_t *key_generating_key, const uint8_t *nonce,
   aes_clear_key (&aes);
 }
 
-#define CHECKSUM_ADDR(data,prvkey_len) (&data[prvkey_len])
-
 void
 gcm_siv_encrypt (const uint8_t *key, const uint8_t *nonce,
-                 uint8_t *data, int prvkey_len)
+                 uint8_t *data, int data_len, uint8_t *tag)
 {
-  uint8_t *checksum = CHECKSUM_ADDR (data, prvkey_len);
   uint64_t auth_key[DATA_ENCRYPTION_AUTH64_SIZE];
   uint8_t encr_key[DATA_ENCRYPTION_KEY_SIZE];
   uint8_t ctr_blk[ENCRYPTION_BLOCK_SIZE];
 
   derive_keys (key, nonce, auth_key, encr_key);
   compute_key_data_checksum (auth_key, encr_key, nonce, data,
-			     prvkey_len, checksum, CKDC_CALC);
-  memcpy (ctr_blk, checksum, ENCRYPTION_BLOCK_SIZE);
+			     data_len, tag, CKDC_CALC);
+  memcpy (ctr_blk, tag, ENCRYPTION_BLOCK_SIZE);
   ctr_blk[15] |= 0x80;
-  crypt0 (encr_key, ctr_blk, data, prvkey_len);
+  crypt0 (encr_key, ctr_blk, data, data_len);
 }
 
 int
 gcm_siv_decrypt (const uint8_t *key, const uint8_t *nonce,
-                 uint8_t *data, int prvkey_len)
+                 uint8_t *data, int data_len, uint8_t *tag)
 {
   int r;
-  uint8_t *checksum = CHECKSUM_ADDR (data, prvkey_len);
   uint64_t auth_key[DATA_ENCRYPTION_AUTH64_SIZE];
   uint8_t encr_key[DATA_ENCRYPTION_KEY_SIZE];
   uint8_t ctr_blk[ENCRYPTION_BLOCK_SIZE];
 
   derive_keys (key, nonce, auth_key, encr_key);
-  memcpy (ctr_blk, checksum, ENCRYPTION_BLOCK_SIZE);
+  memcpy (ctr_blk, tag, ENCRYPTION_BLOCK_SIZE);
   ctr_blk[15] |= 0x80;
-  crypt0 (encr_key, ctr_blk, data, prvkey_len);
+  crypt0 (encr_key, ctr_blk, data, data_len);
   r = compute_key_data_checksum (auth_key, encr_key, nonce, data,
-				 prvkey_len, checksum, CKDC_CHECK);
+				 data_len, tag, CKDC_CHECK);
   return r;
 }
