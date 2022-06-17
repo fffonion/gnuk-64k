@@ -398,7 +398,7 @@ main (int argc, const char *argv[])
     }
 
   puts ("Gnuk (emulation with USBIP), a GnuPG USB Token implementation");
-  puts ("Copyright (C) 2021 Free Software Initiative of Japan");
+  puts ("Copyright (C) 2022 Free Software Initiative of Japan");
   puts ("This is free software under GPLv3+.");
 
   flash_addr = flash_init (flash_image_path);
