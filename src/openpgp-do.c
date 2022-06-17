@@ -1174,15 +1174,18 @@ compute_key_data_checksum (const uint64_t auth_key[DATA_ENCRYPTION_AUTH64_SIZE],
   uint64_t tag[DATA_ENCRYPTION_AUTH64_SIZE];
   uint64_t lenblk[2];
   int i;
+  uint8_t *p;
 
   tag[0] = tag[1] = 0;
   lenblk[0] = 0;
   lenblk[1] = prvkey_len * 8;
   POLYVAL (auth_key, data, prvkey_len, tag);
   POLYVAL (auth_key, (const uint8_t *)lenblk, sizeof lenblk, tag);
+  /* XOR the TAG by NONCE. */
+  p = (uint8_t *)tag;
   for (i = 0; i < DATA_ENCRYPTION_NONCE_SIZE; i++)
-    tag[i] ^= nonce;
-  tag[DATA_ENCRYPTION_TAG_SIZE - 1] &= 0x7f;
+    p[i] ^= nonce[i];
+  p[DATA_ENCRYPTION_TAG_SIZE - 1] &= 0x7f;
 
   aes_set_key (&aes, encr_key);
 
@@ -1248,7 +1251,7 @@ derive_keys (const uint8_t *key_generating_key, const uint8_t *nonce,
 
   aes_set_key (&aes, key_generating_key);
   memset (blk0, 0, 4);
-  memcpy (blk0+4, iv, DATA_ENCRYPTION_NONCE_SIZE);
+  memcpy (blk0+4, nonce, DATA_ENCRYPTION_NONCE_SIZE);
   aes_encrypt (&aes, blk0, blk1);
   memcpy (&auth_key[0], blk1, 8);
   blk0[0] = 1;
