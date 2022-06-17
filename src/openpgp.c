@@ -940,7 +940,7 @@ cmd_pso (struct eventflag *ccid_comm)
 	  r = eddsa_sign_25519 (apdu.cmd_apdu_data, len, output,
 				kd[GPG_KEY_FOR_SIGNING].data,
 				kd[GPG_KEY_FOR_SIGNING].data+32,
-				kd[GPG_KEY_FOR_SIGNING].pubkey);
+				gpg_do_pubkey_addr (GPG_KEY_FOR_SIGNING));
 	  chopstx_setcancelstate (cs);
 	  memcpy (res_APDU, output, ED25519_SIGNATURE_LENGTH);
 	}
@@ -951,7 +951,7 @@ cmd_pso (struct eventflag *ccid_comm)
 	  r = ed448_sign (res_APDU, apdu.cmd_apdu_data, len,
 			  kd[GPG_KEY_FOR_SIGNING].data,
 			  kd[GPG_KEY_FOR_SIGNING].data+57,
-			  kd[GPG_KEY_FOR_SIGNING].pubkey);
+			  gpg_do_pubkey_addr (GPG_KEY_FOR_SIGNING));
 	  chopstx_setcancelstate (cs);
 	}
       else
@@ -1120,7 +1120,7 @@ cmd_internal_authenticate (struct eventflag *ccid_comm)
       r = eddsa_sign_25519 (apdu.cmd_apdu_data, len, output,
 			    kd[GPG_KEY_FOR_AUTHENTICATION].data,
 			    kd[GPG_KEY_FOR_AUTHENTICATION].data+32,
-			    kd[GPG_KEY_FOR_AUTHENTICATION].pubkey);
+			    gpg_do_pubkey_addr (GPG_KEY_FOR_AUTHENTICATION));
       chopstx_setcancelstate (cs);
       memcpy (res_APDU, output, ED25519_SIGNATURE_LENGTH);
     }
@@ -1131,7 +1131,7 @@ cmd_internal_authenticate (struct eventflag *ccid_comm)
       r = ed448_sign (res_APDU, apdu.cmd_apdu_data, len,
 		      kd[GPG_KEY_FOR_AUTHENTICATION].data,
 		      kd[GPG_KEY_FOR_AUTHENTICATION].data+57,
-		      kd[GPG_KEY_FOR_AUTHENTICATION].pubkey);
+		      gpg_do_pubkey_addr (GPG_KEY_FOR_AUTHENTICATION));
       chopstx_setcancelstate (cs);
     }
 

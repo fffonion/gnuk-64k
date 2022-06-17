@@ -143,10 +143,9 @@ void flash_activate (void);
 void flash_key_storage_init (void);
 void flash_do_release (const uint8_t *);
 const uint8_t *flash_do_write (uint8_t nr, const uint8_t *data, int len);
-uint8_t *flash_key_alloc (enum kind_of_key);
-void flash_key_release (uint8_t *, int);
-void flash_key_release_page (enum kind_of_key);
-int flash_key_write (uint8_t *key_addr,
+const uint8_t * flash_key_addr (enum kind_of_key kk);
+void flash_key_release (enum kind_of_key);
+int flash_key_write (enum kind_of_key, int algo,
 		     const uint8_t *key_data, int key_data_len,
 		     const uint8_t *pubkey, int pubkey_len);
 void flash_set_data_pool_last (const uint8_t *p);
@@ -174,7 +173,6 @@ extern uint8_t ch_certificate_start;
 #define MAX_PRVKEY_LEN 512	/* Maximum is the case for RSA 4096-bit.  */
 
 struct key_data {
-  const uint8_t *pubkey;	/* Pointer to public key */
   uint8_t data[MAX_PRVKEY_LEN]; /* decrypted private key data content */
 };
 
@@ -445,3 +443,4 @@ void led_blink (int spec);
 extern uint8_t _regnual_start[], __heap_end__[];
 
 uint8_t * sram_address (uint32_t offset);
+const uint8_t *gpg_do_pubkey_addr (enum kind_of_key kk);

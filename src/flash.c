@@ -87,24 +87,33 @@ extern uint8_t _data_pool[];
 #define FLASH_ADDR_DATA_STORAGE_START ((_data_pool))
 #endif
 
-static int key_available_at (const uint8_t *k, int key_size)
-{
-  int i;
+#define MAX_PKC_KEY 3
 
-  for (i = 0; i < key_size; i++)
-    if (k[i])
-      break;
-  if (i == key_size)	/* It's ZERO.  Released key.  */
-    return 0;
+#define FLASH_PKC_TAG_ZERO 0x00
+#if 0
+#define FLASH_PKC_TAG_KEY  0x10 /* 0x10...0x70 */
+#define FLASH_PKC_TAG_DEK  0x80 /* 0x80...0xA0 */
+#endif
+#define FLASH_PKC_TAG_NONE 0xF0
 
-  for (i = 0; i < key_size; i++)
-    if (k[i] != 0xff)
-      break;
-  if (i == key_size)	/* It's FULL.  Unused key.  */
-    return 0;
+#define FLASH_PKC_TAG_MASK 0xF0
+#define FLASH_PKC_TAG_KEY_BIT  0x80
+#define FLASH_PKC_TAG_KEY_ALGO 0x70
+#define FLASH_PKC_TAG_DEK0 0x80
+#define FLASH_PKC_TAG_DEK1 0x90
+#define FLASH_PKC_TAG_DEK2 0xA0
 
-  return 1;
-}
+
+struct pkc_key {
+  const uint8_t *key_addr;
+#if 0
+  uint16_t dek0_offset;
+  uint16_t dek1_offset;
+  uint16_t dek2_offset;
+#endif
+};
+
+struct pkc_key pkc_key[MAX_PKC_KEY];
 
 
 #define CHIP_ID_REG      ((uint32_t *)0xe0042000)
@@ -156,7 +165,7 @@ flash_terminate (void)
 {
   int i;
 
-  for (i = 0; i < 3; i++)
+  for (i = 0; i < MAX_PKC_KEY; i++)
     flash_erase_page ((uintptr_t)flash_key_getpage (i));
   flash_erase_page ((uintptr_t)FLASH_ADDR_DATA_STORAGE_START);
   flash_erase_page ((uintptr_t)(FLASH_ADDR_DATA_STORAGE_START + flash_page_size));
@@ -184,20 +193,14 @@ flash_key_storage_init (void)
 
   /* For each key, find its address.  */
   p = FLASH_ADDR_KEY_STORAGE_START;
-  for (i = 0; i < 3; i++)
+  for (i = 0; i < MAX_PKC_KEY; i++)
     {
-      const uint8_t *k;
-      int key_size = gpg_get_algo_attr_key_size (i, GPG_KEY_STORAGE);
+      uint8_t tag;
+      uint8_t b0 = *p;
 
-      kd[i].pubkey = NULL;
-      for (k = p; k < p + flash_page_size; k += key_size)
-	if (key_available_at (k, key_size))
-	  {
-	    int prv_len = gpg_get_algo_attr_key_size (i, GPG_KEY_PRIVATE);
-
-	    kd[i].pubkey = k + prv_len;
-	    break;
-	  }
+      tag = (b0 & FLASH_PKC_TAG_MASK);
+      if (tag != FLASH_PKC_TAG_NONE)
+        pkc_key[i].key_addr = p + 2;
 
       p += flash_page_size;
     }
@@ -385,41 +388,31 @@ flash_key_getpage (enum kind_of_key kk)
   return FLASH_ADDR_KEY_STORAGE_START + (flash_page_size * kk);
 }
 
-uint8_t *
-flash_key_alloc (enum kind_of_key kk)
+const uint8_t *
+flash_key_addr (enum kind_of_key kk)
 {
-  uint8_t *k, *k0 = flash_key_getpage (kk);
-  int i;
-  int key_size = gpg_get_algo_attr_key_size (kk, GPG_KEY_STORAGE);
-
-  /* Seek free space in the page.  */
-  for (k = k0; k < k0 + flash_page_size; k += key_size)
-    {
-      const uint32_t *p = (const uint32_t *)k;
-
-      for (i = 0; i < key_size/4; i++)
-	if (p[i] != 0xffffffff)
-	  break;
-
-      if (i == key_size/4)	/* Yes, it's empty.  */
-	return k;
-    }
-
-  /* Should not happen as we have enough free space all time, but just
-     in case.  */
-  return NULL;
+  return pkc_key[kk].key_addr;
 }
 
 int
-flash_key_write (uint8_t *key_addr,
+flash_key_write (enum kind_of_key kk, int algo,
 		 const uint8_t *key_data, int key_data_len,
 		 const uint8_t *pubkey, int pubkey_len)
 {
   uint16_t hw;
   uintptr_t addr;
   int i;
+  uint8_t *key_addr = flash_key_getpage (kk);
+  uint16_t len = key_data_len + pubkey_len;
 
   addr = (uintptr_t)key_addr;
+  pkc_key[kk].key_addr = key_addr + 2;
+
+  hw = ((algo << 4) | ((len >> 8) & 0x0f)) | ((len & 0xff) << 8);
+  if (flash_program_halfword (addr, hw) != 0)
+    return -1;
+  addr += 2;
+
   for (i = 0; i < key_data_len/2; i ++)
     {
       hw = key_data[i*2] | (key_data[i*2+1]<<8);
@@ -439,46 +432,10 @@ flash_key_write (uint8_t *key_addr,
   return 0;
 }
 
-static int
-flash_check_all_other_keys_released (const uint8_t *key_addr, int key_size)
-{
-  uintptr_t start = (uintptr_t)key_addr & ~(flash_page_size - 1);
-  const uint32_t *p = (const uint32_t *)start;
-
-  while (p < (const uint32_t *)(start + flash_page_size))
-    if (p == (const uint32_t *)key_addr)
-      p += key_size/4;
-    else
-      if (*p)
-	return 0;
-      else
-	p++;
-
-  return 1;
-}
-
-static void
-flash_key_fill_zero_as_released (uint8_t *key_addr, int key_size)
-{
-  int i;
-  uintptr_t addr = (uintptr_t)key_addr;
-
-  for (i = 0; i < key_size/2; i++)
-    flash_program_halfword (addr + i*2, 0);
-}
-
 void
-flash_key_release (uint8_t *key_addr, int key_size)
+flash_key_release (enum kind_of_key kk)
 {
-  if (flash_check_all_other_keys_released (key_addr, key_size))
-    flash_erase_page (((uintptr_t)key_addr & ~(flash_page_size - 1)));
-  else
-    flash_key_fill_zero_as_released (key_addr, key_size);
-}
-
-void
-flash_key_release_page (enum kind_of_key kk)
-{
+  pkc_key[kk].key_addr = NULL;
   flash_erase_page ((uintptr_t)flash_key_getpage (kk));
 }
 
