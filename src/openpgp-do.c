@@ -1218,12 +1218,14 @@ gpg_do_load_prvkey (enum kind_of_key kk, int who, const uint8_t *keystring)
 {
   uint8_t nr = get_do_ptr_nr_for_kk (kk);
   int prvkey_len = gpg_get_algo_attr_key_size (kk, GPG_KEY_PRIVATE);
+  int pubkey_len = gpg_get_algo_attr_key_size (kk, GPG_KEY_PUBLIC);
   const uint8_t *do_data = do_ptr[nr];
   const uint8_t *key_addr;
   uint8_t dek[DATA_ENCRYPTION_KEY_SIZE];
   const uint8_t *nonce;
   struct key_data_internal kdi;
   int r;
+  const uint8_t *pubkey;
 
   DEBUG_INFO ("Loading private key: ");
   DEBUG_BYTE (kk);
@@ -1235,6 +1237,8 @@ gpg_do_load_prvkey (enum kind_of_key kk, int who, const uint8_t *keystring)
   if (key_addr == NULL)
     return 0;
 
+  pubkey = gpg_do_pubkey_addr (kk);
+
   memcpy (kdi.data, key_addr, prvkey_len);
   nonce = &do_data[1];
   memcpy (CHECKSUM_ADDR (kdi, prvkey_len),
@@ -1245,7 +1249,8 @@ gpg_do_load_prvkey (enum kind_of_key kk, int who, const uint8_t *keystring)
 	  DATA_ENCRYPTION_KEY_SIZE);
   decrypt_dek (keystring, nonce, dek);
 
-  r = gcm_siv_decrypt (dek, nonce, (uint8_t *)kdi.data, prvkey_len,
+  r = gcm_siv_decrypt (dek, nonce, pubkey, pubkey_len,
+                       (uint8_t *)kdi.data, prvkey_len,
                        CHECKSUM_ADDR (kdi, prvkey_len));
   memset (dek, 0, DATA_ENCRYPTION_KEY_SIZE);
   if (!r)
@@ -1408,7 +1413,8 @@ gpg_do_write_prvkey (enum kind_of_key kk, const uint8_t *key_data,
 	gpg_do_chks_prvkey (kk0, BY_RESETCODE, NULL, 0, NULL);
       }
 
-  gcm_siv_encrypt (dek, pd->nonce, (uint8_t *)kdi.data, prvkey_len,
+  gcm_siv_encrypt (dek, pd->nonce, pubkey, pubkey_len,
+                   (uint8_t *)kdi.data, prvkey_len,
                    CHECKSUM_ADDR (kdi, prvkey_len));
   random_bytes_free (dek);
 

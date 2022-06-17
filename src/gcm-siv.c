@@ -208,6 +208,7 @@ static int
 compute_key_data_checksum (const uint64_t auth_key[DATA_ENCRYPTION_AUTH64_SIZE],
                            uint8_t encr_key[DATA_ENCRYPTION_KEY_SIZE],
 			   const uint8_t *nonce,
+			   const uint8_t *ad, unsigned int ad_len,
 			   const uint8_t *data, unsigned int data_len,
 			   uint8_t *checksum, int check_or_calc)
 {
@@ -218,8 +219,9 @@ compute_key_data_checksum (const uint64_t auth_key[DATA_ENCRYPTION_AUTH64_SIZE],
   uint8_t *p;
 
   tag[0] = tag[1] = 0;
-  lenblk[0] = 0;
+  lenblk[0] = ad_len * 8;
   lenblk[1] = data_len * 8;
+  POLYVAL (auth_key, ad, ad_len, tag);
   POLYVAL (auth_key, data, data_len, tag);
   POLYVAL (auth_key, (const uint8_t *)lenblk, sizeof lenblk, tag);
   /* XOR the TAG by NONCE. */
@@ -289,6 +291,7 @@ derive_keys (const uint8_t *key_generating_key, const uint8_t *nonce,
 
 void
 gcm_siv_encrypt (const uint8_t *key, const uint8_t *nonce,
+                 const uint8_t *ad, int ad_len,
                  uint8_t *data, int data_len, uint8_t *tag)
 {
   uint64_t auth_key[DATA_ENCRYPTION_AUTH64_SIZE];
@@ -296,8 +299,8 @@ gcm_siv_encrypt (const uint8_t *key, const uint8_t *nonce,
   uint8_t ctr_blk[ENCRYPTION_BLOCK_SIZE];
 
   derive_keys (key, nonce, auth_key, encr_key);
-  compute_key_data_checksum (auth_key, encr_key, nonce, data,
-			     data_len, tag, CKDC_CALC);
+  compute_key_data_checksum (auth_key, encr_key, nonce, ad, ad_len,
+                             data, data_len, tag, CKDC_CALC);
   memcpy (ctr_blk, tag, ENCRYPTION_BLOCK_SIZE);
   ctr_blk[15] |= 0x80;
   crypt0 (encr_key, ctr_blk, data, data_len);
@@ -305,6 +308,7 @@ gcm_siv_encrypt (const uint8_t *key, const uint8_t *nonce,
 
 int
 gcm_siv_decrypt (const uint8_t *key, const uint8_t *nonce,
+                 const uint8_t *ad, int ad_len,
                  uint8_t *data, int data_len, uint8_t *tag)
 {
   int r;
@@ -316,7 +320,7 @@ gcm_siv_decrypt (const uint8_t *key, const uint8_t *nonce,
   memcpy (ctr_blk, tag, ENCRYPTION_BLOCK_SIZE);
   ctr_blk[15] |= 0x80;
   crypt0 (encr_key, ctr_blk, data, data_len);
-  r = compute_key_data_checksum (auth_key, encr_key, nonce, data,
-				 data_len, tag, CKDC_CHECK);
+  r = compute_key_data_checksum (auth_key, encr_key, nonce, ad, ad_len,
+                                 data, data_len, tag, CKDC_CHECK);
   return r;
 }
