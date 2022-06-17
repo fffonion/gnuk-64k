@@ -309,19 +309,9 @@ get_algo_attr_data_object (enum kind_of_key kk)
 }
 
 int
-gpg_get_algo_attr_key_size (enum kind_of_key kk, enum size_of_key s)
+gpg_get_algo_key_size (int algo, enum size_of_key s)
 {
-  const uint8_t *algo_attr_p = *get_algo_attr_pointer (kk);
-
-  if (algo_attr_p == NULL)
-    {
-      if (kk == GPG_KEY_FOR_DECRYPTION)
-        goto cv25519;
-      else
-        goto ed25519;
-    }
-
-  switch (algo_attr_p[1])
+  switch (algo)
     {
     case ALGO_SECP256K1:
       if (s == GPG_KEY_STORAGE)
@@ -330,7 +320,6 @@ gpg_get_algo_attr_key_size (enum kind_of_key kk, enum size_of_key s)
 	return 64;
       else
 	return 32;
-    cv25519:
     case ALGO_CURVE25519:
       if (s == GPG_KEY_STORAGE)
 	return 64;
@@ -348,7 +337,6 @@ gpg_get_algo_attr_key_size (enum kind_of_key kk, enum size_of_key s)
 	return 128;
       else
 	return 56;
-    ed25519:
     default:
     case ALGO_ED25519:
       if (s == GPG_KEY_STORAGE)
@@ -360,6 +348,24 @@ gpg_get_algo_attr_key_size (enum kind_of_key kk, enum size_of_key s)
     }
 }
 
+int
+gpg_get_algo_attr_key_size (enum kind_of_key kk, enum size_of_key s)
+{
+  int algo;
+  const uint8_t *algo_attr_p = *get_algo_attr_pointer (kk);
+
+  if (algo_attr_p == NULL)
+    {
+      if (kk == GPG_KEY_FOR_DECRYPTION)
+        algo = ALGO_CURVE25519;
+      else
+        algo = ALGO_ED25519;
+    }
+  else
+    algo = algo_attr_p[1];
+
+  return gpg_get_algo_key_size (algo, s);
+}
 
 static uint32_t digital_signature_counter;
 

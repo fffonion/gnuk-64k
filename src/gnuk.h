@@ -134,6 +134,7 @@ enum size_of_key {
 };
 
 int gpg_get_algo_attr (enum kind_of_key kk);
+int gpg_get_algo_key_size (int algo, enum size_of_key s);
 int gpg_get_algo_attr_key_size (enum kind_of_key kk, enum size_of_key s);
 
 void flash_do_storage_init (const uint8_t **, const uint8_t **);
