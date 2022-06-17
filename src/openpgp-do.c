@@ -315,7 +315,7 @@ gpg_get_algo_key_size (int algo, enum size_of_key s)
     {
     case ALGO_SECP256K1:
       if (s == GPG_KEY_STORAGE)
-	return 128;
+	return 96;
       else if (s == GPG_KEY_PUBLIC)
 	return 64;
       else
@@ -327,20 +327,20 @@ gpg_get_algo_key_size (int algo, enum size_of_key s)
 	return 32;
     case ALGO_ED448:
       if (s == GPG_KEY_STORAGE)
-	return 256;
+	return 171;
       else if (s == GPG_KEY_PUBLIC)
 	return 57;
       else
-	return 128;
+	return 114;
     case ALGO_X448:
       if (s == GPG_KEY_STORAGE)
-	return 128;
+	return 112;
       else
 	return 56;
     default:
     case ALGO_ED25519:
       if (s == GPG_KEY_STORAGE)
-	return 128;
+	return 96;
       else if (s == GPG_KEY_PUBLIC)
 	return 32;
       else
