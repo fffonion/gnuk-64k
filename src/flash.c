@@ -441,7 +441,7 @@ flash_key_addr (enum kind_of_key kk,
 int
 flash_key_write (enum kind_of_key kk, int algo,
                  const uint8_t *nonce, const uint8_t *tag,
-		 const uint8_t *key_data, int key_data_len,
+		 const uint8_t *prvkey, int prvkey_len,
 		 const uint8_t *pubkey, int pubkey_len)
 {
   uint16_t hw;
@@ -449,7 +449,7 @@ flash_key_write (enum kind_of_key kk, int algo,
   int i;
   uint8_t *key_addr = flash_key_getpage (kk);
   uint16_t len = DATA_ENCRYPTION_NONCE_SIZE + DATA_ENCRYPTION_TAG_SIZE
-    + key_data_len + pubkey_len;
+    + prvkey_len + pubkey_len;
 
   addr = (uintptr_t)key_addr;
   pkc_key[kk].key_addr = key_addr;
@@ -475,17 +475,44 @@ flash_key_write (enum kind_of_key kk, int algo,
       addr += 2;
     }
 
-  for (i = 0; i < key_data_len/2; i ++)
+  while (prvkey_len >= 2)
     {
-      hw = key_data[i*2] | (key_data[i*2+1]<<8);
+      hw = *prvkey++;
+      hw |= ((*prvkey++) << 8);
+      prvkey_len -= 2;
       if (flash_program_halfword (addr, hw) != 0)
 	return -1;
       addr += 2;
     }
 
-  for (i = 0; i < pubkey_len/2; i ++)
+  if (prvkey_len)
     {
-      hw = pubkey[i*2] | (pubkey[i*2+1]<<8);
+      hw = *prvkey++;
+      prvkey_len--;
+      if (pubkey_len)
+	{
+	  hw |= *pubkey++;
+	  pubkey_len--;
+	}
+      if (flash_program_halfword (addr, hw) != 0)
+	return -1;
+      addr += 2;
+    }
+
+  while (pubkey_len >= 2)
+    {
+      hw = *pubkey++;
+      hw |= ((*pubkey++) << 8);
+      pubkey_len -= 2;
+      if (flash_program_halfword (addr, hw) != 0)
+	return -1;
+      addr += 2;
+    }
+
+  if (pubkey_len)
+    {
+      hw = *pubkey++;
+      pubkey_len--;
       if (flash_program_halfword (addr, hw) != 0)
 	return -1;
       addr += 2;
