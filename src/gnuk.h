@@ -111,15 +111,24 @@ void gpg_do_put_data (uint16_t tag, const uint8_t *data, int len);
 void gpg_do_public_key (uint8_t kk_byte);
 void gpg_do_keygen (uint8_t *buf);
 
-/* Constants: algo+size */
-#define ALGO_RSA4K      0
-/* #define ALGO_NISTP256R1 1 */
+/* Constants: algo in 3-bit (no use of 0) */
+/* #define ALGO_RSA4K      0   */
+/* #define ALGO_NISTP256R1 1   */
+/* #define ALGO_RSA2K      255 (in Gnuk 1, historical) */
 #define ALGO_SECP256K1  2
 #define ALGO_ED25519    3
 #define ALGO_CURVE25519 4
 #define ALGO_X448       5
 #define ALGO_ED448      6
-#define ALGO_RSA2K      255
+
+/*
+ 2-byte header
+ DATA_ENCRYPTION_NONCE_SIZE
+ + DATA_ENCRYPTION_TAG_SIZE
+ + GPG_KEY_STORAGE for Ed448
+ round up by 2
+ */
+#define KEY_STORAGE_SIZE_MAX 202
 
 enum kind_of_key {
   GPG_KEY_FOR_SIGNING = 0,
@@ -143,6 +152,7 @@ void flash_activate (void);
 void flash_key_storage_init (void);
 void flash_do_release (const uint8_t *);
 const uint8_t *flash_do_write (uint8_t nr, const uint8_t *data, int len);
+
 const uint8_t *flash_key_addr (enum kind_of_key kk,
                                const uint8_t **nonce_p, const uint8_t **tag_p,
                                const uint8_t **prvkey_p, int *prvkey_len_p,
@@ -152,6 +162,8 @@ int flash_key_write (enum kind_of_key, int algo,
                      const uint8_t *nonce, const uint8_t *tag,
 		     const uint8_t *prvkey, int prvkey_len,
 		     const uint8_t *pubkey, int pubkey_len);
+int flash_key_dek_write (enum kind_of_key kk, int dek_no, const uint8_t *dek);
+
 void flash_set_data_pool_last (const uint8_t *p);
 void flash_clear_halfword (uintptr_t addr);
 void flash_increment_counter (uint8_t counter_tag_nr);

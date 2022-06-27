@@ -90,10 +90,8 @@ extern uint8_t _data_pool[];
 #define MAX_PKC_KEY 3
 
 #define FLASH_PKC_TAG_ZERO 0x00
-#if 0
-#define FLASH_PKC_TAG_KEY  0x10 /* 0x10...0x70 */
+#define FLASH_PKC_TAG_KEY  0x10 /* 0x10...0x70: (ALGO_* << 4) */
 #define FLASH_PKC_TAG_DEK  0x80 /* 0x80...0xA0 */
-#endif
 #define FLASH_PKC_TAG_NONE 0xF0
 
 #define FLASH_PKC_TAG_MASK 0xF0
@@ -106,11 +104,8 @@ extern uint8_t _data_pool[];
 
 struct pkc_key {
   const uint8_t *key_addr;
-#if 0
-  uint16_t dek0_offset;
-  uint16_t dek1_offset;
-  uint16_t dek2_offset;
-#endif
+  uint16_t dek_offset[3];
+  uint16_t last_dek_offset;
 };
 
 struct pkc_key pkc_key[MAX_PKC_KEY];
@@ -159,6 +154,7 @@ flash_do_storage_init (const uint8_t **p_do_start, const uint8_t **p_do_end)
 }
 
 static uint8_t *flash_key_getpage (enum kind_of_key kk);
+static void flash_key_dek_scan (enum kind_of_key kk, const uint8_t *key_addr);
 
 void
 flash_terminate (void)
@@ -200,7 +196,10 @@ flash_key_storage_init (void)
 
       tag = (b0 & FLASH_PKC_TAG_MASK);
       if (tag != FLASH_PKC_TAG_NONE)
-        pkc_key[i].key_addr = p;
+	{
+	  pkc_key[i].key_addr = p;
+	  flash_key_dek_scan (i, p);
+	}
 
       p += flash_page_size;
     }
@@ -362,7 +361,7 @@ flash_do_release (const uint8_t *do_data)
   addr += 2;
 
   /* Fill zero for content and pad */
-  for (i = 0; i < len/2; i ++)
+  for (i = 0; i < len/2; i++)
     {
       if (flash_program_halfword (addr, 0) != 0)
 	flash_warning ("fill-zero failure");
@@ -459,7 +458,7 @@ flash_key_write (enum kind_of_key kk, int algo,
     return -1;
   addr += 2;
 
-  for (i = 0; i < DATA_ENCRYPTION_NONCE_SIZE/2; i ++)
+  for (i = 0; i < DATA_ENCRYPTION_NONCE_SIZE/2; i++)
     {
       hw = nonce[i*2] | (nonce[i*2+1]<<8);
       if (flash_program_halfword (addr, hw) != 0)
@@ -467,7 +466,7 @@ flash_key_write (enum kind_of_key kk, int algo,
       addr += 2;
     }
 
-  for (i = 0; i < DATA_ENCRYPTION_TAG_SIZE/2; i ++)
+  for (i = 0; i < DATA_ENCRYPTION_TAG_SIZE/2; i++)
     {
       hw = tag[i*2] | (tag[i*2+1]<<8);
       if (flash_program_halfword (addr, hw) != 0)
@@ -518,6 +517,8 @@ flash_key_write (enum kind_of_key kk, int algo,
       addr += 2;
     }
 
+  pkc_key[kk].last_dek_offset = addr - (uintptr_t)key_addr;
+
   return 0;
 }
 
@@ -528,7 +529,126 @@ flash_key_release (enum kind_of_key kk)
   flash_erase_page ((uintptr_t)flash_key_getpage (kk));
 }
 
+static void
+flash_key_dek_scan (enum kind_of_key kk, const uint8_t *key_addr)
+{
+  uint32_t len;
+  const uint8_t *p;
+  int dek_no;
 
+  p = key_addr;
+  len = ((key_addr[0] & 0x0f << 8) | key_addr[1]) + 2;
+
+  while (p < key_addr + flash_page_size)
+    {
+      p += len;
+
+      if (p[0] == 0xff)
+	break;
+
+      dek_no = (p[0] & 0x7) >> 4;
+      len = p[1] + 2;
+      pkc_key[kk].dek_offset[dek_no] = p - key_addr;
+    }
+
+  pkc_key[kk].last_dek_offset = p - key_addr;
+}
+
+static int
+flash_key_garbage_collect (enum kind_of_key kk, int dek_no, uint8_t *key_addr)
+{
+  uint16_t hw;
+  uintptr_t addr;
+  int i, j, k;
+  uint16_t dek_offset;
+  uint8_t dek[3][DATA_ENCRYPTION_KEY_SIZE+2];
+  uint8_t key_material[KEY_STORAGE_SIZE_MAX];
+  int len;
+
+  len = ((key_addr[0] &0x0f << 8) | key_addr[1]) + 2;
+  memcpy (key_material, key_addr, len);
+  if ((len & 1))
+    key_material[len] = 0;
+
+  for (i = j = 0; i < 3; i++)
+    {
+      /* Skip the DEK_NO entry, it's about to be updated.  */
+      if (i == dek_no)
+	continue;
+
+      dek_offset = pkc_key[kk].dek_offset[i];
+      if (dek_offset != 0)
+	memcpy (dek[j++], key_addr+dek_offset, DATA_ENCRYPTION_KEY_SIZE+2);
+    }
+
+  flash_erase_page ((uintptr_t)key_addr);
+
+  addr = (uintptr_t)key_addr;
+  i = 0;
+  for (i = 0; i < (len+1)/2; i++)
+    {
+      hw = key_material[i*2] | (key_material[i*2+1] << 8);
+      if (flash_program_halfword (addr, hw) != 0)
+	return -1;
+      addr += 2;
+    }
+
+  for (k = 0; k < j; k++)
+    {
+      int dek_no_k;
+
+      dek_no_k = ((dek[k][0]&0x70 >> 4));
+      for (i = 0; i < (DATA_ENCRYPTION_KEY_SIZE+2)/2; i++)
+	{
+	  hw = dek[k][i*2] | (dek[k][i*2+1] << 8);
+	  if (flash_program_halfword (addr, hw) != 0)
+	    return -1;
+	  addr += 2;
+	}
+
+      pkc_key[kk].dek_offset[dek_no_k] = addr - (uintptr_t)key_addr;
+    }
+
+  pkc_key[kk].last_dek_offset = addr - (uintptr_t)key_addr;
+  return 0;
+}
+
+int
+flash_key_dek_write (enum kind_of_key kk, int dek_no, const uint8_t *dek)
+{
+  uint16_t hw;
+  uintptr_t addr;
+  int i;
+  uint8_t *key_addr = flash_key_getpage (kk);
+  uint16_t dek_offset;
+
+  dek_offset = pkc_key[kk].last_dek_offset;
+  if (dek_offset + 2 + DATA_ENCRYPTION_KEY_SIZE >= flash_page_size)
+    {
+      flash_key_garbage_collect (kk, dek_no, key_addr);
+      dek_offset = pkc_key[kk].last_dek_offset;
+    }
+
+  pkc_key[kk].dek_offset[dek_no] = dek_offset;
+  pkc_key[kk].last_dek_offset = dek_offset + 2 + DATA_ENCRYPTION_KEY_SIZE;
+
+  addr = (uintptr_t)key_addr + dek_offset;
+  hw = FLASH_PKC_TAG_DEK | (dek_no << 4) | (DATA_ENCRYPTION_KEY_SIZE << 8);
+  if (flash_program_halfword (addr, hw) != 0)
+    return -1;
+  addr += 2;
+
+  for (i = 0; i < DATA_ENCRYPTION_KEY_SIZE/2; i++)
+    {
+      hw = dek[i*2] | (dek[i*2+1]<<8);
+      if (flash_program_halfword (addr, hw) != 0)
+	return -1;
+      addr += 2;
+    }
+
+  return 0;
+}
+
 void
 flash_clear_halfword (uintptr_t addr)
 {
