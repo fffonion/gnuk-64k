@@ -1158,14 +1158,17 @@ struct key_data_internal {
  */
 
 static void
-crypt1 (const uint8_t *key, const uint8_t *nonce, uint8_t *data,
+crypt1 (int no, const uint8_t *key, const uint8_t *nonce, uint8_t *data,
         unsigned int len)
 {
   aes_context aes;
   uint8_t ctr_blk[ENCRYPTION_BLOCK_SIZE];
 
   aes_set_key (&aes, key);
-  memcpy (ctr_blk, "\xd1\xff\xd1\xff", 4);
+  ctr_blk[0] = 0;
+  ctr_blk[1] = no;
+  ctr_blk[2] = 0xd1;
+  ctr_blk[3] = 0xff;
   memcpy (ctr_blk + ENCRYPTION_BLOCK_SIZE - DATA_ENCRYPTION_NONCE_SIZE,
 	  nonce, DATA_ENCRYPTION_NONCE_SIZE);
   aes_ctr (&aes, ctr_blk, data, len, data);
@@ -1173,15 +1176,17 @@ crypt1 (const uint8_t *key, const uint8_t *nonce, uint8_t *data,
 }
 
 static void
-encrypt_dek (const uint8_t *key_string, const uint8_t *nonce, uint8_t *dek)
+encrypt_dek (int no, const uint8_t *key_string, const uint8_t *nonce,
+	     uint8_t *dek)
 {
-  crypt1 (key_string, nonce, dek, DATA_ENCRYPTION_KEY_SIZE);
+  crypt1 (no, key_string, nonce, dek, DATA_ENCRYPTION_KEY_SIZE);
 }
 
 static void
-decrypt_dek (const uint8_t *key_string, const uint8_t *nonce, uint8_t *dek)
+decrypt_dek (int no, const uint8_t *key_string, const uint8_t *nonce,
+	     uint8_t *dek)
 {
-  crypt1 (key_string, nonce, dek, DATA_ENCRYPTION_KEY_SIZE);
+  crypt1 (no, key_string, nonce, dek, DATA_ENCRYPTION_KEY_SIZE);
 }
 
 /* For three keys: Signing, Decryption, and Authentication */
@@ -1225,7 +1230,7 @@ gpg_do_load_prvkey (enum kind_of_key kk, int who, const uint8_t *keystring)
     return -1;
 
   memcpy (dek, dek_encrypted[(who - BY_USER)], DATA_ENCRYPTION_KEY_SIZE);
-  decrypt_dek (keystring, nonce, dek);
+  decrypt_dek ((who - BY_USER), keystring, nonce, dek);
 
   r = gcm_siv_decrypt (dek, nonce, pubkey, pubkey_len,
                        (uint8_t *)kdi.data, prvkey_len, tag);
@@ -1397,12 +1402,12 @@ gpg_do_write_prvkey (enum kind_of_key kk, const uint8_t *key_data,
       return r;
     }
 
-  encrypt_dek (ks, nonce0, dek_encrypted_1);
+  encrypt_dek (0, ks, nonce0, dek_encrypted_1);
   flash_key_dek_write (kk, 0, dek_encrypted_1);
 
   if (keystring_admin)
     {
-      encrypt_dek (keystring_admin, nonce0, dek_encrypted_3);
+      encrypt_dek (2, keystring_admin, nonce0, dek_encrypted_3);
       flash_key_dek_write (kk, 2, dek_encrypted_3);
     }
 
@@ -1455,8 +1460,8 @@ gpg_do_chks_prvkey (enum kind_of_key kk,
         return -1;
 
       memcpy (dek, dek_p, DATA_ENCRYPTION_KEY_SIZE);
-      decrypt_dek (old_ks, nonce, dek);
-      encrypt_dek (new_ks, nonce, dek);
+      decrypt_dek ((who_old - BY_USER), old_ks, nonce, dek);
+      encrypt_dek ((who_new - BY_USER), new_ks, nonce, dek);
       flash_key_dek_write (kk, (who_new - BY_USER), dek);
     }
 
