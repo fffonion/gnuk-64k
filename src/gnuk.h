@@ -154,12 +154,13 @@ void flash_do_release (const uint8_t *);
 const uint8_t *flash_do_write (uint8_t nr, const uint8_t *data, int len);
 
 const uint8_t *flash_key_addr (enum kind_of_key kk,
-                               const uint8_t **nonce_p, const uint8_t **tag_p,
-                               const uint8_t **prvkey_p, int *prvkey_len_p,
-                               const uint8_t **pubkey_p, int *pubkey_len_p);
+			       const uint8_t **nonce_p, const uint8_t **tag_p,
+			       const uint8_t **prvkey_p, int *prvkey_len_p,
+			       const uint8_t **pubkey_p, int *pubkey_len_p,
+			       const uint8_t *dek_encrypted[3]);
 void flash_key_release (enum kind_of_key);
 int flash_key_write (enum kind_of_key, int algo,
-                     const uint8_t *nonce, const uint8_t *tag,
+		     const uint8_t *nonce, const uint8_t *tag,
 		     const uint8_t *prvkey, int prvkey_len,
 		     const uint8_t *pubkey, int pubkey_len);
 int flash_key_dek_write (enum kind_of_key kk, int dek_no, const uint8_t *dek);
@@ -190,15 +191,6 @@ extern uint8_t ch_certificate_start;
 
 struct key_data {
   uint8_t data[MAX_PRVKEY_LEN]; /* decrypted private key data content */
-};
-
-struct prvkey_data {
-  /*
-   * DEK (Data Encryption Key) encrypted
-   */
-  uint8_t dek_encrypted_1[DATA_ENCRYPTION_KEY_SIZE]; /* For user */
-  uint8_t dek_encrypted_2[DATA_ENCRYPTION_KEY_SIZE]; /* For resetcode */
-  uint8_t dek_encrypted_3[DATA_ENCRYPTION_KEY_SIZE]; /* For admin */
 };
 
 #define BY_USER		1

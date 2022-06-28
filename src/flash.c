@@ -386,9 +386,10 @@ flash_key_getpage (enum kind_of_key kk)
 
 const uint8_t *
 flash_key_addr (enum kind_of_key kk,
-                const uint8_t **nonce_p, const uint8_t **tag_p,
-                const uint8_t **prvkey_p, int *prvkey_len_p,
-                const uint8_t **pubkey_p, int *pubkey_len_p)
+		const uint8_t **nonce_p, const uint8_t **tag_p,
+		const uint8_t **prvkey_p, int *prvkey_len_p,
+		const uint8_t **pubkey_p, int *pubkey_len_p,
+		const uint8_t *dek_encrypted[3])
 {
   const uint8_t *key_addr = pkc_key[kk].key_addr;
 
@@ -404,39 +405,56 @@ flash_key_addr (enum kind_of_key kk,
       prvkey_len = gpg_get_algo_key_size (algo, GPG_KEY_PRIVATE);
       pubkey_len = gpg_get_algo_key_size (algo, GPG_KEY_PUBLIC);
       if (nonce_p)
-        *nonce_p = addr;
+	*nonce_p = addr;
       addr += DATA_ENCRYPTION_NONCE_SIZE;
       if (tag_p)
-        *tag_p = addr;
+	*tag_p = addr;
       addr += DATA_ENCRYPTION_TAG_SIZE;
       if (prvkey_p)
-        *prvkey_p = addr;
+	*prvkey_p = addr;
       if (prvkey_len_p)
-        *prvkey_len_p = prvkey_len;
+	*prvkey_len_p = prvkey_len;
       addr += prvkey_len;
       if (pubkey_p)
-        *pubkey_p = addr;
+	*pubkey_p = addr;
       if (pubkey_len_p)
-        *pubkey_len_p = pubkey_len;
+	*pubkey_len_p = pubkey_len;
+      if (dek_encrypted)
+	{
+	  if (pkc_key[kk].dek_offset[0])
+	    dek_encrypted[0] = key_addr + pkc_key[kk].dek_offset[0] + 2;
+	  else
+	    dek_encrypted[0] = NULL;
+	  if (pkc_key[kk].dek_offset[1])
+	    dek_encrypted[1] = key_addr + pkc_key[kk].dek_offset[1] + 2;
+	  else
+	    dek_encrypted[1] = NULL;
+	  if (pkc_key[kk].dek_offset[2])
+	    dek_encrypted[2] = key_addr + pkc_key[kk].dek_offset[2] + 2;
+	  else
+	    dek_encrypted[2] = NULL;
+	}
+
+      return key_addr + 2;
     }
   else
     {
       if (nonce_p)
-        *nonce_p = NULL;
+	*nonce_p = NULL;
       if (tag_p)
-        *tag_p = NULL;
+	*tag_p = NULL;
       if (prvkey_p)
-        *prvkey_p = NULL;
+	*prvkey_p = NULL;
       if (pubkey_p)
-        *pubkey_p = NULL;
-    }
+	*pubkey_p = NULL;
 
-  return key_addr + 2;
+      return NULL;
+    }
 }
 
 int
 flash_key_write (enum kind_of_key kk, int algo,
-                 const uint8_t *nonce, const uint8_t *tag,
+		 const uint8_t *nonce, const uint8_t *tag,
 		 const uint8_t *prvkey, int prvkey_len,
 		 const uint8_t *pubkey, int pubkey_len)
 {
@@ -523,6 +541,10 @@ void
 flash_key_release (enum kind_of_key kk)
 {
   pkc_key[kk].key_addr = NULL;
+  pkc_key[kk].dek_offset[0] = 0;
+  pkc_key[kk].dek_offset[1] = 0;
+  pkc_key[kk].dek_offset[2] = 0;
+  pkc_key[kk].last_dek_offset = 0;
   flash_erase_page ((uintptr_t)flash_key_getpage (kk));
 }
 
@@ -631,7 +653,8 @@ flash_key_dek_write (enum kind_of_key kk, int dek_no, const uint8_t *dek)
   uint16_t dek_offset;
 
   dek_offset = pkc_key[kk].last_dek_offset;
-  if (dek_offset + 2 + DATA_ENCRYPTION_KEY_SIZE >= flash_page_size)
+  if (dek_offset + 2 + (dek==NULL? 0 : DATA_ENCRYPTION_KEY_SIZE)
+      >= flash_page_size)
     {
       flash_key_garbage_collect (kk, dek_no, key_addr);
       dek_offset = pkc_key[kk].last_dek_offset;

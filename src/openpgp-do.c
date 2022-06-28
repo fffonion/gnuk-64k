@@ -1186,21 +1186,6 @@ decrypt_dek (const uint8_t *key_string, const uint8_t *nonce, uint8_t *dek)
 /* For three keys: Signing, Decryption, and Authentication */
 struct key_data kd[3];
 
-static uint8_t
-get_do_ptr_nr_for_kk (enum kind_of_key kk)
-{
-  switch (kk)
-    {
-    case GPG_KEY_FOR_SIGNING:
-      return NR_DO_PRVKEY_SIG;
-    case GPG_KEY_FOR_DECRYPTION:
-      return NR_DO_PRVKEY_DEC;
-    case GPG_KEY_FOR_AUTHENTICATION:
-      return NR_DO_PRVKEY_AUT;
-    }
-  return NR_DO_PRVKEY_SIG;
-}
-
 void
 gpg_do_clear_prvkey (enum kind_of_key kk)
 {
@@ -1216,8 +1201,6 @@ gpg_do_clear_prvkey (enum kind_of_key kk)
 int
 gpg_do_load_prvkey (enum kind_of_key kk, int who, const uint8_t *keystring)
 {
-  uint8_t nr = get_do_ptr_nr_for_kk (kk);
-  const uint8_t *do_data = do_ptr[nr];
   uint8_t dek[DATA_ENCRYPTION_KEY_SIZE];
   struct key_data_internal kdi;
   int r;
@@ -1227,20 +1210,20 @@ gpg_do_load_prvkey (enum kind_of_key kk, int who, const uint8_t *keystring)
   const uint8_t *prvkey;
   int prvkey_len;
   int pubkey_len;
+  const uint8_t *dek_encrypted[3];
 
   DEBUG_INFO ("Loading private key: ");
   DEBUG_BYTE (kk);
 
-  if (do_data == NULL)
-    return 0;
-
   if (flash_key_addr (kk, &nonce, &tag, &prvkey, &prvkey_len,
-                      &pubkey, &pubkey_len) == NULL)
+		      &pubkey, &pubkey_len, dek_encrypted) == NULL)
     return 0;
 
   memcpy (kdi.data, prvkey, prvkey_len);
-  memcpy (dek, (&do_data[1]) + DATA_ENCRYPTION_KEY_SIZE * (who - BY_USER),
-	  DATA_ENCRYPTION_KEY_SIZE);
+  if (dek_encrypted[(who - BY_USER)] == NULL)
+    return -1;
+
+  memcpy (dek, dek_encrypted[(who - BY_USER)], DATA_ENCRYPTION_KEY_SIZE);
   decrypt_dek (keystring, nonce, dek);
 
   r = gcm_siv_decrypt (dek, nonce, pubkey, pubkey_len,
@@ -1263,14 +1246,6 @@ static int8_t num_prv_keys;
 static void
 gpg_do_delete_prvkey (enum kind_of_key kk)
 {
-  uint8_t nr = get_do_ptr_nr_for_kk (kk);
-  const uint8_t *do_data = do_ptr[nr];
-
-  if (do_data == NULL)
-    return;
-
-  do_ptr[nr] = NULL;
-  flash_do_release (do_data);
   flash_key_release (kk);
 
   if (admin_authorized == BY_ADMIN && kk == GPG_KEY_FOR_SIGNING)
@@ -1325,12 +1300,8 @@ gpg_do_write_prvkey (enum kind_of_key kk, const uint8_t *key_data,
 		     int prvkey_len, const uint8_t *keystring_admin,
 		     const uint8_t *pubkey)
 {
-  uint8_t nr = get_do_ptr_nr_for_kk (kk);
   int attr = gpg_get_algo_attr (kk);;
-  const uint8_t *p;
   int r;
-  struct prvkey_data prv;
-  struct prvkey_data *pd = &prv;
   const uint8_t *dek, *nonce;
   struct key_data_internal kdi;
   int pubkey_len;
@@ -1340,6 +1311,8 @@ gpg_do_write_prvkey (enum kind_of_key kk, const uint8_t *key_data,
   const uint8_t *initial_pw;
   uint8_t *tag;
   uint8_t nonce0[DATA_ENCRYPTION_NONCE_SIZE];
+  uint8_t dek_encrypted_1[DATA_ENCRYPTION_KEY_SIZE];
+  uint8_t dek_encrypted_3[DATA_ENCRYPTION_KEY_SIZE];
 
   DEBUG_INFO ("Key import\r\n");
   DEBUG_SHORT (prvkey_len);
@@ -1390,9 +1363,8 @@ gpg_do_write_prvkey (enum kind_of_key kk, const uint8_t *key_data,
   random_bytes_free (nonce);
 
   dek = random_bytes_get (); /* 32-byte random bytes */
-  memcpy (pd->dek_encrypted_1, dek, DATA_ENCRYPTION_KEY_SIZE);
-  memcpy (pd->dek_encrypted_2, dek, DATA_ENCRYPTION_KEY_SIZE);
-  memcpy (pd->dek_encrypted_3, dek, DATA_ENCRYPTION_KEY_SIZE);
+  memcpy (dek_encrypted_1, dek, DATA_ENCRYPTION_KEY_SIZE);
+  memcpy (dek_encrypted_3, dek, DATA_ENCRYPTION_KEY_SIZE);
 
   gpg_do_get_initial_pw_setting (0, &pw_len, &initial_pw);
   s2k (NULL, 0, initial_pw, pw_len, ks);
@@ -1418,25 +1390,22 @@ gpg_do_write_prvkey (enum kind_of_key kk, const uint8_t *key_data,
 		       pubkey, pubkey_len);
   if (r < 0)
     {
-      memset (pd, 0, sizeof (struct prvkey_data));
+      memset (dek_encrypted_1, 0, DATA_ENCRYPTION_KEY_SIZE);
+      memset (dek_encrypted_3, 0, DATA_ENCRYPTION_KEY_SIZE);
       return r;
     }
 
-  encrypt_dek (ks, nonce0, pd->dek_encrypted_1);
-
-  memset (pd->dek_encrypted_2, 0, DATA_ENCRYPTION_KEY_SIZE);
+  encrypt_dek (ks, nonce0, dek_encrypted_1);
+  flash_key_dek_write (kk, 0, dek_encrypted_1);
 
   if (keystring_admin)
-    encrypt_dek (keystring_admin, nonce0, pd->dek_encrypted_3);
-  else
-    memset (pd->dek_encrypted_3, 0, DATA_ENCRYPTION_KEY_SIZE);
+    {
+      encrypt_dek (keystring_admin, nonce0, dek_encrypted_3);
+      flash_key_dek_write (kk, 2, dek_encrypted_3);
+    }
 
-  p = flash_do_write (nr, (const uint8_t *)pd, sizeof (struct prvkey_data));
-  do_ptr[nr] = p;
-
-  memset (pd, 0, sizeof (struct prvkey_data));
-  if (p == NULL)
-    return -1;
+  memset (dek_encrypted_1, 0, DATA_ENCRYPTION_KEY_SIZE);
+  memset (dek_encrypted_3, 0, DATA_ENCRYPTION_KEY_SIZE);
 
   if (keystring_admin && kk == GPG_KEY_FOR_SIGNING)
     {
@@ -1463,65 +1432,33 @@ gpg_do_chks_prvkey (enum kind_of_key kk,
 		    int who_old, const uint8_t *old_ks,
 		    int who_new, const uint8_t *new_ks)
 {
-  uint8_t nr = get_do_ptr_nr_for_kk (kk);
-  const uint8_t *do_data = do_ptr[nr];
   uint8_t dek[DATA_ENCRYPTION_KEY_SIZE];
-  struct prvkey_data prv;
-  struct prvkey_data *pd = &prv;
-  uint8_t *dek_p;
-  int update_needed = 0;
-  int r = 1;			/* Success */
+  const uint8_t *dek_p;
   const uint8_t *nonce;
-
-  if (do_data == NULL)
-    return 0;			/* No private key */
+  const uint8_t *dek_encrypted[3];
 
   if (flash_key_addr (kk, &nonce, NULL, NULL, NULL,
-                      NULL, NULL) == NULL)
+		      NULL, NULL, dek_encrypted) == NULL)
     return 0;			/* No private key */
 
-  memcpy (pd, &do_data[1], sizeof (struct prvkey_data));
-
-  dek_p = ((uint8_t *)pd) + DATA_ENCRYPTION_KEY_SIZE * (who_old - BY_USER);
-  memcpy (dek, dek_p, DATA_ENCRYPTION_KEY_SIZE);
+  dek_p = dek_encrypted[(who_old - BY_USER)];
   if (who_new == 0)		/* Remove */
     {
-      int i;
-
-      for (i = 0; i < DATA_ENCRYPTION_KEY_SIZE; i++)
-	if (dek_p[i] != 0)
-	  {
-	    update_needed = 1;
-	    dek_p[i] = 0;
-	  }
+      if (dek_p != NULL)
+        flash_key_dek_write (kk, (who_old - BY_USER), NULL);
     }
   else
     {
+      if (dek_p == NULL)
+        return -1;
+
+      memcpy (dek, dek_p, DATA_ENCRYPTION_KEY_SIZE);
       decrypt_dek (old_ks, nonce, dek);
       encrypt_dek (new_ks, nonce, dek);
-      dek_p += DATA_ENCRYPTION_KEY_SIZE * (who_new - who_old);
-      if (memcmp (dek_p, dek, DATA_ENCRYPTION_KEY_SIZE) != 0)
-	{
-	  memcpy (dek_p, dek, DATA_ENCRYPTION_KEY_SIZE);
-	  update_needed = 1;
-	}
+      flash_key_dek_write (kk, (who_new - BY_USER), dek);
     }
 
-  if (update_needed)
-    {
-      const uint8_t *p;
-
-      flash_do_release (do_data);
-      do_ptr[nr] = NULL;
-      p = flash_do_write (nr, (const uint8_t *)pd, sizeof (struct prvkey_data));
-      do_ptr[nr] = p;
-      if (p == NULL)
-	r = -1;
-    }
-
-  memset (pd, 0, sizeof (struct prvkey_data));
-
-  return r;
+  return 1;
 }
 
 
@@ -2239,8 +2176,8 @@ gpg_do_pubkey_addr (enum kind_of_key kk)
   const uint8_t *pubkey;
 
   if (flash_key_addr (kk, NULL, NULL, NULL, NULL,
-                      &pubkey, NULL) == NULL)
-    return 0;
+		      &pubkey, NULL, NULL) == NULL)
+    return NULL;
 
   return pubkey;
 }
