@@ -115,8 +115,8 @@ gpg_init (void)
   else
     file_selection = FILE_NONE;
 
-  gpg_data_scan (flash_do_start, flash_do_end);
   flash_key_storage_init ();
+  gpg_data_scan (flash_do_start, flash_do_end);
 }
 
 static void

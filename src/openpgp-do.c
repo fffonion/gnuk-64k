@@ -45,6 +45,8 @@ static void gpg_reset_digital_signature_counter (void);
 #define PASSWORD_ERRORS_MAX 3	/* >= errors, it will be locked */
 static const uint8_t *pw_err_counter_p[3];
 
+static int8_t num_prv_keys;
+
 static int
 gpg_pw_get_err_counter (uint8_t which)
 {
@@ -925,8 +927,7 @@ rw_kdf (uint16_t tag, int with_tag, const uint8_t *data, int len, int is_write)
       const uint8_t **do_data_p = (const uint8_t **)&do_ptr[NR_DO_KDF];
 
       /* KDF DO can be changed only when no keys are registered.  */
-      if (do_ptr[NR_DO_PRVKEY_SIG] || do_ptr[NR_DO_PRVKEY_DEC]
-	  || do_ptr[NR_DO_PRVKEY_AUT])
+      if (num_prv_keys)
 	return 0;
 
       /* The valid data format is:
@@ -1241,11 +1242,12 @@ gpg_do_load_prvkey (enum kind_of_key kk, int who, const uint8_t *keystring)
 }
 
 
-static int8_t num_prv_keys;
-
 static void
 gpg_do_delete_prvkey (enum kind_of_key kk)
 {
+  if (flash_key_addr (kk, NULL, NULL, NULL, NULL, NULL, NULL, NULL) == NULL)
+    return;
+
   flash_key_release (kk);
 
   if (admin_authorized == BY_ADMIN && kk == GPG_KEY_FOR_SIGNING)
@@ -1818,11 +1820,11 @@ gpg_data_scan (const uint8_t *do_start, const uint8_t *do_end)
   flash_set_data_pool_last (p);
 
   num_prv_keys = 0;
-  if (do_ptr[NR_DO_PRVKEY_SIG] != NULL)
+  if (flash_key_addr (0, NULL, NULL, NULL, NULL, NULL, NULL, NULL))
     num_prv_keys++;
-  if (do_ptr[NR_DO_PRVKEY_DEC] != NULL)
+  if (flash_key_addr (1, NULL, NULL, NULL, NULL, NULL, NULL, NULL))
     num_prv_keys++;
-  if (do_ptr[NR_DO_PRVKEY_AUT] != NULL)
+  if (flash_key_addr (2, NULL, NULL, NULL, NULL, NULL, NULL, NULL))
     num_prv_keys++;
 
   data_objects_number_of_bytes = 0;

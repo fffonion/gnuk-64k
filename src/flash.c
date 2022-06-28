@@ -105,7 +105,7 @@ struct pkc_key {
   uint16_t last_dek_offset;
 };
 
-struct pkc_key pkc_key[MAX_PKC_KEY];
+static struct pkc_key pkc_key[MAX_PKC_KEY];
 
 
 #define CHIP_ID_REG      ((uint32_t *)0xe0042000)

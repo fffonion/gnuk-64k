@@ -320,9 +320,7 @@ extern uint8_t admin_authorized;
 #define NR_DO_URL		0x0b
 #define NR_DO_NAME		0x0c
 #define NR_DO_LANGUAGE		0x0d
-#define NR_DO_PRVKEY_SIG	0x0e
-#define NR_DO_PRVKEY_DEC	0x0f
-#define NR_DO_PRVKEY_AUT	0x10
+/**/
 #define NR_DO_KEYSTRING_PW1	0x11
 #define NR_DO_KEYSTRING_RC	0x12
 #define NR_DO_KEYSTRING_PW3	0x13
