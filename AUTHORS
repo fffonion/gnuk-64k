@@ -7,7 +7,6 @@ Aurelien Jarno:
 
 Anthony Romano:
     Modified:
-	src/call-rsa.c
 	src/main.c
 	src/mod.c
 
@@ -47,12 +46,10 @@ NIIBE Yutaka:
 	tool/pinpadtest.py
     Wrote reGNUal implementation:
 	regnual/regnual.c
-	regnual/sys.c
     Wrote Gnuk implementation:
 	gnuk.svg
 	src/configure
 	src/ac.c
-	src/call-rsa.c
 	src/debug.c
 	src/flash.c
 	src/gnuk.h
@@ -61,18 +58,42 @@ NIIBE Yutaka:
 	src/openpgp-do.c
 	src/openpgp.c
 	src/openpgp.h
-	src/pin-cir.c
-	src/pin-dial.c
-	src/pin-dnd.c
 	src/random.c
-	src/sys.c
-	src/usb-icc.c
-	src/usb-msc.c
-	src/usb-msc.h
+	src/usb-ccid.c
 	src/usb_ctrl.c
 	src/usb_desc.c
-	src/usb_lld.c
-	src/usb_lld.h
+	src/aes.h
+	src/aes.c
+	src/gcm-siv.c
+	src/ecc-ed448.c
+	src/ecc-x448.c
+	src/affine.h
+	src/bn.h
+	src/bn.c
+	src/call-ec.c
+	src/call-ec_p256k1.c
+	src/ec_p256k1.h
+	src/ec_p256k1.c
+	src/ecc-ed25519.c
+	src/ecc-mont.c
+	src/ecc.c
+	src/field-group-select.h
+	src/jpc-ac_p256k1.h
+	src/jpc.c
+	src/jpc_p256k1.c
+	src/mod.h
+	src/mod.c
+	src/mod25638.h
+	src/mod25638.c
+	src/modp256k1.h
+	src/modp256k1.c
+	src/muladd_256.h
+	src/sha512.h
+	src/sha512.c
+	src/p448.h
+	src/p448.c
+	src/shake256.h
+	src/shake256.c
 	*
 	and others.
 
