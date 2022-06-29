@@ -67,13 +67,16 @@ class OpenPGP_Card(object):
         string2 = reader.get_string(2)
         self.is_gnuk = (string2 == "Gnuk Token")
         self.is_yubikey = (string2[0:7] == "YubiKey") or (string2[0:7] == "Yubikey")
-
         try:
             string3 = reader.get_string(3)
         except:
             string3 = None
-
         self.is_emulated_gnuk = (string3 and string3[-8:] == "EMULATED")
+        try:
+            string4 = reader.get_string(4)
+        except:
+            string4 = None
+        self.is_gnuk2 = (self.is_gnuk and string4 and string4[0:9] == "release/2")
         self.initialize_kdf()
 
     def add_to_key_attrlist(self, no, attr):

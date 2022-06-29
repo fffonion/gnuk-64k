@@ -158,12 +158,23 @@ class Test_Card_Personalize_Adminless_FIRST(object):
         v = card.verify(3, PW1_TEST1)
         assert v
 
+    # Reset code is not allowed in admin-less mode
     def test_setup_reset_code(self, card):
-        r = card.setup_reset_code(RESETCODE_TEST)
-        assert r
+        if card.is_gnuk2:
+            try:
+                r = card.setup_reset_code(RESETCODE_TEST)
+            except ValueError as e:
+                r = e.args[0]
+            assert r == "6f00"
+        else:
+            r = card.setup_reset_code(RESETCODE_TEST)
+            assert r
 
     def test_reset_code(self, card):
-        r = card.reset_passwd_by_resetcode(RESETCODE_TEST, PW1_TEST2)
+        if card.is_gnuk2:
+            r = card.change_passwd(1, PW1_TEST1, PW1_TEST2)
+        else:
+            r = card.reset_passwd_by_resetcode(RESETCODE_TEST, PW1_TEST2)
         assert r
 
     # Changing PW1, auth status for admin cleared

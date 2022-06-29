@@ -724,7 +724,19 @@ cmd_pgp_gakp (struct eventflag *ccid_comm)
 	GPG_CONDITION_NOT_SATISFIED ();
 #endif
       else
-	gpg_do_keygen (&apdu.cmd_apdu_data[0]);
+	{
+	  const uint8_t *ks_pw1 = gpg_do_read_simple (NR_DO_KEYSTRING_PW1);
+	  const uint8_t *ks_pw3 = gpg_do_read_simple (NR_DO_KEYSTRING_PW3);
+
+	  /* Reject generating key after admin-less mode setup.  */
+	  if (ks_pw1 && ks_pw3 == NULL)
+	    {
+	      GPG_CONDITION_NOT_SATISFIED ();
+	      return;
+	    }
+
+	  gpg_do_keygen (&apdu.cmd_apdu_data[0]);
+	}
     }
 }
 
