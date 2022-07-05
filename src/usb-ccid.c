@@ -1752,14 +1752,12 @@ ccid_thread (void *arg)
     struct ep_out *epo = &endpoint_out;
     struct apdu *a = &apdu;
 
-#ifdef ACKBTN_SUPPORT
     if (ackbtn_active)
       {
 	ackbtn_active = 0;
 	ackbtn_disable ();
 	led_blink (LED_WAIT_FOR_BUTTON);
       }
-#endif
 
     epi_init (epi, ENDP1, c);
     epo_init (epo, ENDP1, c);
@@ -1934,14 +1932,12 @@ ccid_thread (void *arg)
 	  if (c->timeout_cnt == 7
 	      && c->ccid_state == CCID_STATE_ACK_REQUIRED_1)
 	    {
-#ifdef ACKBTN_SUPPORT
 	      ackbtn_active = 0;
 	      ackbtn_disable ();
 	      led_blink (LED_WAIT_FOR_BUTTON);
 	      c->a->sw = GPG_ACK_TIMEOUT;
 	      c->a->res_apdu_data_len = 0;
 	      goto exec_done;
-#endif
 	    }
 	  else
 	    c->ccid_state = ccid_handle_timeout (c);
