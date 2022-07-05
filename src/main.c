@@ -23,6 +23,7 @@
  */
 
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <chopstx.h>
 #include <eventflag.h>
@@ -520,7 +521,7 @@ main (int argc, const char *argv[])
   flash_erase_all_and_exec ((void (*)(void))entry);
 #endif
 #else
-  exit (0);
+  // exit (0);
 #endif
 
   /* Never reached */
